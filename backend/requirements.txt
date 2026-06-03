@@ -1,0 +1,40 @@
+# Core
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-dotenv==1.0.1
+pydantic==2.10.4
+pydantic-settings==2.7.1
+
+# Database
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.1
+
+# Redis
+redis[hiredis]==5.2.1
+
+# Computer Vision
+ultralytics==8.3.52
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+supervision==0.25.1
+lap==0.4.0
+
+# API
+python-multipart==0.0.19
+websockets==14.1
+aiofiles==24.1.0
+
+# Analytics
+pandas==2.2.3
+scipy==1.14.1
+
+# Utilities
+structlog==24.4.0
+httpx==0.28.1
+orjson==3.10.13
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.24.0
+httpx==0.28.1
