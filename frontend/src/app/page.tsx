@@ -290,14 +290,14 @@ export default function Dashboard() {
       <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {/* ── Quick Navigation ──────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <Link href="/heatmap" className="glass-card p-4 flex items-center gap-3 hover:border-rose-500/40 transition-all group">
             <div className="p-2.5 rounded-xl bg-rose-500/15 text-rose-400 group-hover:scale-110 transition-transform">
               <Flame className="w-5 h-5" />
             </div>
             <div>
-              <div className="font-semibold text-sm">Store Layout Heatmap</div>
-              <div className="text-xs text-[var(--text-secondary)]">Customer movement overlay</div>
+              <div className="font-semibold text-sm">Heatmap</div>
+              <div className="text-xs text-[var(--text-secondary)]">Store zones</div>
             </div>
           </Link>
           <Link href="/journeys" className="glass-card p-4 flex items-center gap-3 hover:border-purple-500/40 transition-all group">
@@ -305,8 +305,8 @@ export default function Dashboard() {
               <Route className="w-5 h-5" />
             </div>
             <div>
-              <div className="font-semibold text-sm">Journey Replay</div>
-              <div className="text-xs text-[var(--text-secondary)]">Animated customer paths</div>
+              <div className="font-semibold text-sm">Journeys</div>
+              <div className="text-xs text-[var(--text-secondary)]">Customer paths</div>
             </div>
           </Link>
           <Link href="/insights" className="glass-card p-4 flex items-center gap-3 hover:border-amber-500/40 transition-all group">
@@ -314,8 +314,26 @@ export default function Dashboard() {
               <Award className="w-5 h-5" />
             </div>
             <div>
-              <div className="font-semibold text-sm">Executive Insights</div>
-              <div className="text-xs text-[var(--text-secondary)]">AI-generated intelligence</div>
+              <div className="font-semibold text-sm">Insights</div>
+              <div className="text-xs text-[var(--text-secondary)]">AI intelligence</div>
+            </div>
+          </Link>
+          <Link href="/analytics" className="glass-card p-4 flex items-center gap-3 hover:border-cyan-500/40 transition-all group">
+            <div className="p-2.5 rounded-xl bg-cyan-500/15 text-cyan-400 group-hover:scale-110 transition-transform">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="font-semibold text-sm">Analytics</div>
+              <div className="text-xs text-[var(--text-secondary)]">Historical trends</div>
+            </div>
+          </Link>
+          <Link href="/live" className="glass-card p-4 flex items-center gap-3 hover:border-emerald-500/40 transition-all group">
+            <div className="p-2.5 rounded-xl bg-emerald-500/15 text-emerald-400 group-hover:scale-110 transition-transform">
+              <Activity className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="font-semibold text-sm">Live Monitor</div>
+              <div className="text-xs text-[var(--text-secondary)]">Real-time feed</div>
             </div>
           </Link>
         </div>
