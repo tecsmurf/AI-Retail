@@ -13,12 +13,14 @@
 - [x] Documentation suite
 
 ## Phase 2 — Post-Hackathon
-- [ ] Process actual CCTV footage through CV pipeline
+- [x] Process actual CCTV footage through CV pipeline
 - [ ] Hand interaction detection (MediaPipe)
 - [ ] Product pickup/return events
-- [ ] Heatmap overlay on store layout
-- [ ] Journey replay timeline visualization
-- [ ] Historical analytics (weekly/monthly trends)
+- [x] Heatmap overlay on store layout
+- [x] Journey replay timeline visualization
+- [x] Historical analytics (weekly/monthly trends)
+- [x] Live store monitoring (real-time event feed)
+- [x] Executive insights with AI findings
 - [ ] Email/SMS alert notifications
 - [ ] Store layout editor
 

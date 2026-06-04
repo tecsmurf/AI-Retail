@@ -54,10 +54,50 @@
 - Zone transition detection via position → polygon mapping
 - 494 real events from 8 CCTV clips processed in ~195 seconds
 
-### Next Steps
-- [ ] Set up Neon PostgreSQL and run seed script with real events
+### Next Steps (Remaining)
+- [ ] Push to GitHub (needs git remote setup)
 - [ ] Deploy backend to Railway
-- [ ] Deploy frontend to Vercel
 - [ ] Connect frontend to live backend API
-- [ ] Create API endpoint for uploading and processing new videos
-- [ ] Add heatmap overlay on store layout images
+- [ ] Deploy updated frontend to Vercel
+
+## Day 2 — June 4, 2026
+
+### Phase 3: New Dashboard Pages (Completed)
+- ✅ **Historical Analytics** (`/analytics`)
+  - Daily/Weekly toggle with trend charts
+  - Visitor & Revenue composite chart (Recharts ComposedChart)
+  - Conversion Rate trend line chart
+  - Weekly Traffic Heatmap table (12 hours × 7 days)
+  - Zone Popularity sparkline cards (5-week trends)
+  - Queue Wait Time bar chart
+  - Summary cards with WoW growth comparison
+- ✅ **Live Store Monitor** (`/live`)
+  - Simulated real-time event feed (2-5s interval)
+  - Live stats bar (In-Store, In Queue, Entries, Exits, Purchases)
+  - Event items with color-coded types and confidence scores
+  - Zone Activity live progress bars
+  - Camera Status panel (all 4 cameras)
+  - Live Alerts section (queue building, high traffic)
+  - Pause/Resume control
+- ✅ **Dashboard Navigation** updated to 5 cards (added Analytics + Live)
+- ✅ **Production build** verified — all 6 pages compile and prerender
+
+### Architecture Decisions Made
+- Simulated WebSocket for Live Monitor (easily swappable to real WS)
+- Recharts ComposedChart for dual-axis visitor/revenue display
+- Sparkline mini-charts for zone trend visualization
+
+### Updated Page Count: 6
+1. `/` — Executive Dashboard
+2. `/heatmap` — Store Layout Heatmap
+3. `/journeys` — Customer Journey Replay
+4. `/insights` — Executive Insights + AI Findings
+5. `/analytics` — Historical Analytics (Daily/Weekly)
+6. `/live` — Live Store Monitor
+
+### Next Steps
+- [ ] Push to GitHub (needs git remote setup)
+- [ ] Deploy updated frontend to Vercel
+- [ ] Deploy backend to Railway
+- [ ] Connect frontend to live backend API
+
