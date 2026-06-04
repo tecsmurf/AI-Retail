@@ -33,3 +33,4 @@ models/*.pt
 
 # Data (large files)
 purple/Store*/Store*/*.mp4
+*.db

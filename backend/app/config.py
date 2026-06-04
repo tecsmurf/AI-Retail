@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # ── Database ─────────────────────────────────────────────────
     database_url: str = Field(
-        default="postgresql+asyncpg://postgres:postgres@localhost:5432/purplesol",
+        default="sqlite+aiosqlite:///./purplesol.db",
         alias="DATABASE_URL",
     )
 

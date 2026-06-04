@@ -13,12 +13,28 @@ from app.config import settings
 
 
 # ── Engine ───────────────────────────────────────────────────────
+_db_url = settings.database_url
+
+# Support Neon-style URLs: convert postgres:// to postgresql+asyncpg://
+if _db_url.startswith("postgres://"):
+    _db_url = _db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+elif _db_url.startswith("postgresql://"):
+    _db_url = _db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+# Use aiosqlite for SQLite URLs (dev/demo fallback)
+_is_sqlite = _db_url.startswith("sqlite")
+_pool_args = {} if _is_sqlite else {"pool_size": 10, "max_overflow": 20, "pool_pre_ping": True}
+
+# For Neon, ensure SSL is used
+_connect_args = {}
+if "neon.tech" in _db_url:
+    _connect_args = {"ssl": True}
+
 engine = create_async_engine(
-    settings.database_url,
+    _db_url,
     echo=not settings.is_production,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
+    connect_args=_connect_args,
+    **_pool_args,
 )
 
 # ── Session Factory ──────────────────────────────────────────────
