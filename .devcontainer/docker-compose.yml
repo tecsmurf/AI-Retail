@@ -1,0 +1,25 @@
+services:
+  dev:
+    image: mcr.microsoft.com/devcontainers/python:1-3.11-bookworm
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+    environment:
+      DATABASE_URL: postgresql+asyncpg://purplesol:purplesol@db:5432/purplesol
+      TEST_DATABASE_URL: postgresql+asyncpg://purplesol:purplesol@db:5432/purplesol_test
+      APP_ENV: development
+      SECRET_KEY: codespace-dev-secret-not-for-production
+      ADMIN_EMAIL: admin@purplesol.local
+      ADMIN_PASSWORD: change-this-password
+      API_ORIGIN: http://localhost:8000
+    depends_on: [db]
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: purplesol
+      POSTGRES_USER: purplesol
+      POSTGRES_PASSWORD: purplesol
+    volumes: [devpg:/var/lib/postgresql/data]
+volumes:
+  devpg:

@@ -1,0 +1,21 @@
+{
+  "name": "PurpleSol",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "dev",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" }
+  },
+  "forwardPorts": [3000, 8000],
+  "portsAttributes": {
+    "3000": { "label": "Dashboard", "onAutoForward": "openBrowser" },
+    "8000": { "label": "API" }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "charliermarsh.ruff", "dbaeumer.vscode-eslint", "bradlc.vscode-tailwindcss"]
+    }
+  },
+  "hostRequirements": { "cpus": 4, "memory": "8gb" }
+}
