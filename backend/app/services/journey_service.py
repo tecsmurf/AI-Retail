@@ -1,277 +1,180 @@
-"""Journey service — reconstruct and analyze customer journeys."""
+"""Journey reconstruction and analysis.
+
+A journey is the ordered event sequence of one anonymous track on one camera
+in one processed video. There is no cross-camera re-identification, so a
+journey only covers what that camera saw; ``observed_entry``/``observed_exit``
+say whether the store entry/exit was actually observed.
+
+Journey types (business-rule classification, not model output):
+* ``bounce``: ENTRY then EXIT within 60 s with no zone visit
+* ``billing_visit``: visited a QUEUE or BILLING zone
+* ``browse``: visited at least one other zone
+* ``entry_only`` / ``exit_only``: only a line crossing was observed
+* ``other``: anything else
+"""
 
 from __future__ import annotations
 
 import uuid
-from collections import Counter
-from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Tuple
+from collections import Counter, defaultdict
+from statistics import mean
+from typing import Dict, List, Optional, Sequence
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.event import Event, CustomerJourney, JourneyEvent
+from app.models.event import CustomerJourney, Event, JourneyEvent
+from app.services.timerange import TimeRange
+
+BOUNCE_SECONDS = 60.0
 
 
-class JourneyService:
-    """Service for customer journey reconstruction and analysis."""
-
-    def __init__(self, db: AsyncSession) -> None:
-        self.db = db
-
-    # ── Journey Reconstruction ───────────────────────────────────
-
-    async def reconstruct_journeys(
-        self,
-        store_id: uuid.UUID,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-    ) -> int:
-        """
-        Reconstruct customer journeys from raw events.
-        Groups events by customer_id, orders by timestamp,
-        and creates journey records.
-        Returns count of journeys created.
-        """
-        # Get all entry events in the time range
-        query = (
-            select(Event.customer_id)
-            .where(
-                Event.store_id == store_id,
-                Event.event_type == "ENTRY",
-                Event.is_staff.is_(False),
-            )
-            .distinct()
-        )
-        if start_time:
-            query = query.where(Event.timestamp >= start_time)
-        if end_time:
-            query = query.where(Event.timestamp <= end_time)
-
-        result = await self.db.execute(query)
-        customer_ids = [row[0] for row in result.all()]
-
-        count = 0
-        for customer_id in customer_ids:
-            journey = await self._build_journey(store_id, customer_id)
-            if journey:
-                self.db.add(journey)
-                count += 1
-
-        await self.db.flush()
-        return count
-
-    async def _build_journey(
-        self, store_id: uuid.UUID, customer_id: str
-    ) -> Optional[CustomerJourney]:
-        """Build a single customer journey from events."""
-        result = await self.db.execute(
-            select(Event)
-            .where(
-                Event.store_id == store_id,
-                Event.customer_id == customer_id,
-            )
-            .order_by(Event.timestamp)
-        )
-        events = list(result.scalars().all())
-
-        if not events:
-            return None
-
-        # Find entry and exit
-        entry_event = next(
-            (e for e in events if e.event_type == "ENTRY"), events[0]
-        )
-        exit_event = next(
-            (e for e in events if e.event_type == "EXIT"), None
-        )
-
-        # Collect zones visited
-        zones = []
-        for e in events:
-            if e.event_type in ("ZONE_ENTER", "ZONE_ENTERED") and e.zone_name:
-                if e.zone_name not in zones:
-                    zones.append(e.zone_name)
-
-        # Calculate total dwell
-        total_dwell = sum(
-            e.dwell_seconds or 0
-            for e in events
-            if e.event_type == "DWELL_TIME"
-        )
-
-        # Check billing
-        visited_billing = any(
-            e.zone_type == "BILLING" or e.event_type in ("CHECKOUT", "QUEUE_COMPLETED")
-            for e in events
-        )
-
-        # Determine journey type
-        duration = None
-        if exit_event:
-            duration = (exit_event.timestamp - entry_event.timestamp).total_seconds()
-
-        journey_type = self._classify_journey(
-            zones_count=len(zones),
-            visited_billing=visited_billing,
-            duration=duration,
-        )
-
-        journey = CustomerJourney(
-            store_id=store_id,
-            customer_id=customer_id,
-            entry_time=entry_event.timestamp,
-            exit_time=exit_event.timestamp if exit_event else None,
-            duration_seconds=duration,
-            zones_visited=zones,
-            zone_count=len(zones),
-            total_dwell_seconds=total_dwell if total_dwell > 0 else None,
-            made_purchase=visited_billing,  # approximation
-            visited_billing=visited_billing,
-            journey_type=journey_type,
-            gender=entry_event.gender,
-            age_bucket=entry_event.age_bucket,
-        )
-
-        # Create journey events (steps)
-        for seq, event in enumerate(events, 1):
-            step = JourneyEvent(
-                sequence=seq,
-                event_type=event.event_type,
-                zone_name=event.zone_name,
-                timestamp=event.timestamp,
-                dwell_seconds=event.dwell_seconds,
-            )
-            journey.journey_events.append(step)
-
-        return journey
-
-    def _classify_journey(
-        self,
-        zones_count: int,
-        visited_billing: bool,
-        duration: Optional[float],
-    ) -> str:
-        """Classify a journey type."""
-        if visited_billing:
-            return "conversion"
-        if zones_count == 0:
-            return "bounce"
-        if duration and duration < 60:
-            return "bounce"
+def classify(zones: List[str], zone_types: List[str], entered: bool, exited: bool, duration: Optional[float]) -> str:
+    if any(t in ("QUEUE", "BILLING") for t in zone_types):
+        return "billing_visit"
+    if zones:
         return "browse"
+    if entered and exited and duration is not None and duration <= BOUNCE_SECONDS:
+        return "bounce"
+    if entered and not exited:
+        return "entry_only"
+    if exited and not entered:
+        return "exit_only"
+    return "other"
 
-    # ── Querying ─────────────────────────────────────────────────
 
-    async def get_journeys(
-        self,
-        store_id: uuid.UUID,
-        journey_type: Optional[str] = None,
-        limit: int = 50,
-        offset: int = 0,
-    ) -> List[CustomerJourney]:
-        """Get journeys with optional type filter."""
-        query = (
-            select(CustomerJourney)
-            .where(CustomerJourney.store_id == store_id)
-            .options(selectinload(CustomerJourney.journey_events))
+def build_journeys(store_id: uuid.UUID, job_id: Optional[uuid.UUID], events: Sequence[Event], source: str) -> List[CustomerJourney]:
+    by_track: Dict[str, List[Event]] = defaultdict(list)
+    for e in events:
+        by_track[e.customer_id].append(e)
+    journeys = []
+    for customer_id, evs in by_track.items():
+        evs.sort(key=lambda e: (e.timestamp, e.event_type))
+        zones: List[str] = []
+        zone_types: List[str] = []
+        total_dwell = 0.0
+        for e in evs:
+            if e.event_type in ("ZONE_ENTER", "QUEUE_ENTER") and e.zone_name:
+                zones.append(e.zone_name)
+                zone_types.append(e.zone_type or "")
+            if e.event_type == "ZONE_EXIT" and e.dwell_seconds:
+                total_dwell += float(e.dwell_seconds)
+            if e.event_type == "QUEUE_EXIT" and e.queue_wait_seconds:
+                total_dwell += float(e.queue_wait_seconds)
+        entered = any(e.event_type == "ENTRY" for e in evs)
+        exited = any(e.event_type == "EXIT" for e in evs)
+        start, end = evs[0].timestamp, evs[-1].timestamp
+        duration = (end - start).total_seconds()
+        j = CustomerJourney(
+            store_id=store_id,
+            job_id=job_id,
+            customer_id=customer_id,
+            camera_id=evs[0].camera_id,
+            source=source,
+            entry_time=start,
+            exit_time=end,
+            duration_seconds=round(duration, 2),
+            zones_visited=zones,
+            zone_count=len(set(zones)),
+            total_dwell_seconds=round(total_dwell, 2) if total_dwell else None,
+            visited_billing=any(t in ("QUEUE", "BILLING") for t in zone_types),
+            made_purchase=False,
+            observed_entry=entered,
+            observed_exit=exited,
+            journey_type=classify(zones, zone_types, entered, exited, duration),
         )
-        if journey_type:
-            query = query.where(CustomerJourney.journey_type == journey_type)
-        query = query.order_by(CustomerJourney.entry_time.desc())
-        query = query.limit(limit).offset(offset)
-
-        result = await self.db.execute(query)
-        return list(result.scalars().all())
-
-    async def get_journey_analytics(
-        self, store_id: uuid.UUID
-    ) -> Dict:
-        """Compute journey analytics for a store."""
-        result = await self.db.execute(
-            select(
-                CustomerJourney.journey_type,
-                func.count(CustomerJourney.id).label("count"),
-                func.avg(CustomerJourney.duration_seconds).label("avg_duration"),
-                func.avg(CustomerJourney.zone_count).label("avg_zones"),
+        for seq, e in enumerate(evs, 1):
+            j.journey_events.append(
+                JourneyEvent(
+                    sequence=seq,
+                    event_type=e.event_type,
+                    zone_name=e.zone_name,
+                    timestamp=e.timestamp,
+                    dwell_seconds=e.dwell_seconds if e.dwell_seconds is not None else e.queue_wait_seconds,
+                )
             )
-            .where(CustomerJourney.store_id == store_id)
-            .group_by(CustomerJourney.journey_type)
-        )
-        rows = result.all()
+        journeys.append(j)
+    return journeys
 
-        total = sum(r.count for r in rows)
-        type_counts = {r.journey_type: r.count for r in rows}
 
-        return {
-            "total_journeys": total,
-            "avg_journey_duration": (
-                sum(r.avg_duration or 0 for r in rows) / len(rows)
-                if rows else 0
-            ),
-            "avg_zones_visited": (
-                sum(r.avg_zones or 0 for r in rows) / len(rows)
-                if rows else 0
-            ),
-            "conversion_journeys": type_counts.get("conversion", 0),
-            "abandonment_journeys": type_counts.get("abandonment", 0),
-            "browse_journeys": type_counts.get("browse", 0),
-            "bounce_journeys": type_counts.get("bounce", 0),
-            "conversion_rate": (
-                type_counts.get("conversion", 0) / total * 100
-                if total > 0 else 0
-            ),
-        }
+async def rebuild_for_job(db: AsyncSession, store_id: uuid.UUID, job_id: uuid.UUID) -> int:
+    await db.execute(delete(CustomerJourney).where(CustomerJourney.job_id == job_id))
+    events = (await db.execute(select(Event).where(Event.job_id == job_id))).scalars().all()
+    journeys = build_journeys(store_id, job_id, events, "cv")
+    db.add_all(journeys)
+    await db.flush()
+    return len(journeys)
 
-    async def get_top_paths(
-        self, store_id: uuid.UUID, limit: int = 10
-    ) -> List[Dict]:
-        """Get the most common customer paths through the store."""
-        result = await self.db.execute(
-            select(
-                CustomerJourney.zones_visited,
-                CustomerJourney.journey_type,
-                CustomerJourney.duration_seconds,
-            )
-            .where(
+
+async def list_journeys(
+    db: AsyncSession,
+    store_id: uuid.UUID,
+    tr: TimeRange,
+    sources: Sequence[str],
+    journey_type: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> Dict:
+    q = select(CustomerJourney).where(
+        CustomerJourney.store_id == store_id,
+        CustomerJourney.entry_time >= tr.start_utc,
+        CustomerJourney.entry_time < tr.end_utc,
+        CustomerJourney.source.in_(list(sources)),
+    )
+    if journey_type:
+        q = q.where(CustomerJourney.journey_type == journey_type)
+    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar() or 0
+    rows = await db.execute(
+        q.options(selectinload(CustomerJourney.journey_events))
+        .order_by(CustomerJourney.entry_time.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return {"total": total, "limit": limit, "offset": offset, "items": list(rows.scalars().all())}
+
+
+async def journey_analytics(db: AsyncSession, store_id: uuid.UUID, tr: TimeRange, sources: Sequence[str], top: int = 10) -> Dict:
+    rows = (
+        await db.execute(
+            select(CustomerJourney).where(
                 CustomerJourney.store_id == store_id,
-                CustomerJourney.zones_visited.isnot(None),
+                CustomerJourney.entry_time >= tr.start_utc,
+                CustomerJourney.entry_time < tr.end_utc,
+                CustomerJourney.source.in_(list(sources)),
             )
         )
-        journeys = result.all()
-
-        # Count paths
-        path_counter: Counter = Counter()
-        path_durations: Dict[str, List[float]] = {}
-        path_conversions: Dict[str, int] = {}
-
-        for j in journeys:
-            if not j.zones_visited:
-                continue
-            path_key = " → ".join(["ENTRY"] + j.zones_visited + ["EXIT"])
-            path_counter[path_key] += 1
-            if path_key not in path_durations:
-                path_durations[path_key] = []
-                path_conversions[path_key] = 0
-            if j.duration_seconds:
-                path_durations[path_key].append(j.duration_seconds)
-            if j.journey_type == "conversion":
-                path_conversions[path_key] += 1
-
-        top_paths = []
-        for path, count in path_counter.most_common(limit):
-            durations = path_durations.get(path, [])
-            conversions = path_conversions.get(path, 0)
-            top_paths.append({
-                "path": path.split(" → "),
-                "count": count,
-                "avg_duration_seconds": (
-                    sum(durations) / len(durations) if durations else 0
-                ),
-                "conversion_rate": (
-                    conversions / count * 100 if count > 0 else 0
-                ),
-            })
-
-        return top_paths
+    ).scalars().all()
+    types = Counter(j.journey_type for j in rows)
+    durations = [j.duration_seconds for j in rows if j.duration_seconds is not None]
+    paths: Counter = Counter()
+    path_durations: Dict[tuple, List[float]] = defaultdict(list)
+    for j in rows:
+        if not j.zones_visited:
+            continue
+        # Collapse consecutive repeats (A, A, B -> A, B).
+        path: List[str] = []
+        for z in j.zones_visited:
+            if not path or path[-1] != z:
+                path.append(z)
+        key = tuple(path)
+        paths[key] += 1
+        if j.duration_seconds is not None:
+            path_durations[key].append(j.duration_seconds)
+    return {
+        "total_journeys": len(rows),
+        "by_type": dict(types),
+        "with_observed_entry": sum(1 for j in rows if j.observed_entry),
+        "with_observed_exit": sum(1 for j in rows if j.observed_exit),
+        "avg_duration_seconds": round(mean(durations), 1) if durations else None,
+        "avg_zones_visited": round(mean(j.zone_count for j in rows), 2) if rows else None,
+        "top_paths": [
+            {
+                "path": list(p),
+                "count": c,
+                "avg_duration_seconds": round(mean(path_durations[p]), 1) if path_durations[p] else None,
+            }
+            for p, c in paths.most_common(top)
+        ],
+        "scope_note": "Journeys are per camera: tracks are not linked across cameras.",
+    }
