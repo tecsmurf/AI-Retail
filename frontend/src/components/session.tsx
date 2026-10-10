@@ -10,7 +10,7 @@ interface SessionValue {
   checked: boolean;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (everywhere?: boolean) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -64,9 +64,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setChecked(true);
   }, []);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (everywhere = false) => {
     try {
-      await api("/api/auth/logout", { method: "POST" });
+      await api(everywhere ? "/api/auth/logout-everywhere" : "/api/auth/logout", { method: "POST" });
     } finally {
       setUser(null);
       router.replace("/login");
