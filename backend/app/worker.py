@@ -314,6 +314,11 @@ class Worker:
                 state["stage"] = "analyzing"
 
             def should_cancel() -> bool:
+                # Checked by the pipeline between frames, so a redeploy (SIGTERM)
+                # stops the job promptly instead of at the next heartbeat.
+                if self.stopping.is_set() and not cancel_flag.is_set():
+                    reason["why"] = "shutdown"
+                    cancel_flag.set()
                 return cancel_flag.is_set()
 
             artifact_dir = os.path.join(workdir, "artifacts")

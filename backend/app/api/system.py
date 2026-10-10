@@ -71,6 +71,7 @@ request_metrics = RequestMetrics()
 
 async def _check_database() -> dict:
     from alembic.runtime.migration import MigrationContext
+
     from app.migrate import head_revision
 
     try:

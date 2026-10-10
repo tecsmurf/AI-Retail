@@ -17,12 +17,12 @@ import asyncio
 import sys
 from pathlib import Path
 
-from sqlalchemy import inspect
-
 from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
+from sqlalchemy import inspect
+
 from app.config import settings
 from app.database import build_engine
 

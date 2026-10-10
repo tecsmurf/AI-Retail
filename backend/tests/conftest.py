@@ -88,12 +88,16 @@ async def _login(email: str, password: str, role: str) -> AsyncClient:
 @pytest_asyncio.fixture
 async def admin():
     c = await _login(*ADMIN, ROLE_ADMIN)
-    async with c:
+    try:
         yield c
+    finally:
+        await c.aclose()
 
 
 @pytest_asyncio.fixture
 async def viewer():
     c = await _login(*VIEWER, ROLE_VIEWER)
-    async with c:
+    try:
         yield c
+    finally:
+        await c.aclose()
