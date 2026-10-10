@@ -69,6 +69,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <button onClick={() => void logout()} className="mt-2 flex items-center gap-2 text-[var(--text-secondary)] hover:text-white">
               <LogOut className="h-3.5 w-3.5" /> Sign out
             </button>
+            <button onClick={() => void logout(true)} className="mt-1.5 text-left text-[var(--text-muted)] hover:text-white">
+              Sign out on all devices
+            </button>
           </div>
         </aside>
 
@@ -116,6 +119,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="truncate">{user.email} · {user.role}</div>
                 <button onClick={() => void logout()} className="mt-3 flex min-h-10 items-center gap-2 text-[var(--text-secondary)]">
                   <LogOut className="h-4 w-4" /> Sign out
+                </button>
+                <button onClick={() => void logout(true)} className="flex min-h-10 items-center text-[var(--text-muted)]">
+                  Sign out on all devices
                 </button>
               </div>
             </div>
