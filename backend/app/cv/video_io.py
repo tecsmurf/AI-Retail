@@ -44,7 +44,11 @@ class VideoMeta:
     warnings: List[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
-        return asdict(self)
+        # The local path is a worker temp file: not useful to clients and it
+        # leaks host layout, so it is left out of stored/returned metadata.
+        d = asdict(self)
+        d.pop("path", None)
+        return d
 
 
 def _parse_rate(rate: Optional[str]) -> Optional[float]:
