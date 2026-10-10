@@ -71,6 +71,7 @@ class Settings(BaseSettings):
     # "s3" uses any S3-compatible service (AWS S3, Cloudflare R2, MinIO...).
     storage_backend: str = Field(default="local", alias="STORAGE_BACKEND")
     storage_local_dir: str = Field(default="./storage", alias="STORAGE_LOCAL_DIR")
+    allow_local_storage: bool = Field(default=False, alias="ALLOW_LOCAL_STORAGE")
     s3_bucket: Optional[str] = Field(default=None, alias="S3_BUCKET")
     s3_endpoint_url: Optional[str] = Field(default=None, alias="S3_ENDPOINT_URL")
     s3_region: str = Field(default="auto", alias="S3_REGION")
@@ -121,6 +122,11 @@ class Settings(BaseSettings):
             problems.append("SECRET_KEY must be set to a random value of at least 32 characters")
         if self.database_url.startswith("sqlite"):
             problems.append("DATABASE_URL must point to PostgreSQL in production")
+        if self.storage_backend == "local" and not self.allow_local_storage:
+            problems.append(
+                "STORAGE_BACKEND=local only works when the API and worker share a disk; "
+                "use s3 (S3/R2/MinIO) or set ALLOW_LOCAL_STORAGE=true on a single host"
+            )
         if self.storage_backend == "s3" and not self.s3_bucket:
             problems.append("S3_BUCKET is required when STORAGE_BACKEND=s3")
         if "*" in self.cors_origins:

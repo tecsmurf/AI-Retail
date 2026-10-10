@@ -257,3 +257,16 @@ async def test_pos_unassigned_codes_listed(admin):
 async def test_pos_import_rejects_missing_columns(admin):
     r = await admin.post("/api/pos/import", files={"file": ("pos.csv", "a,b\n1,2\n", "text/csv")})
     assert r.status_code == 422
+
+
+def test_production_config_rejects_insecure_defaults():
+    from app.config import Settings
+
+    bad = Settings(APP_ENV="production", SECRET_KEY="short", DATABASE_URL="sqlite+aiosqlite:///x.db",
+                   API_CORS_ORIGINS="*", STORAGE_BACKEND="local")
+    problems = " ".join(bad.validate_for_production())
+    for word in ("SECRET_KEY", "PostgreSQL", "CORS", "STORAGE_BACKEND"):
+        assert word in problems
+    good = Settings(APP_ENV="production", SECRET_KEY="x" * 40, DATABASE_URL="postgresql://u:p@h/db",
+                    API_CORS_ORIGINS="https://app.example.com", STORAGE_BACKEND="s3", S3_BUCKET="b")
+    assert good.validate_for_production() == []
