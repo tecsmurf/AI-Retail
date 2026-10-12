@@ -1,0 +1,26 @@
+# PurpleSol video worker: decodes uploads, runs YOLO11 + ByteTrack, writes events.
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# CPU-only PyTorch (avoids ~2 GB of CUDA libraries).
+RUN pip install --index-url https://download.pytorch.org/whl/cpu torch==2.5.1 torchvision==0.20.1
+COPY requirements.txt requirements-worker.txt ./
+RUN pip install -r requirements-worker.txt
+
+COPY alembic.ini ./
+COPY alembic ./alembic
+COPY app ./app
+# Official Ultralytics YOLO11n weights (sha256 0ebbc80d...6417644ee1), bundled
+# so the worker never downloads a model at runtime.
+COPY yolo11n.pt ./yolo11n.pt
+
+RUN useradd --create-home --uid 10001 app && mkdir -p /tmp/purplesol-worker && chown app /tmp/purplesol-worker
+USER app
+ENV APP_ENV=production YOLO_MODEL=/app/yolo11n.pt YOLO_CONFIG_DIR=/tmp/ultralytics
+CMD ["python", "-m", "app.worker"]

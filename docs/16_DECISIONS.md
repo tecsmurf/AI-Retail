@@ -1,3 +1,5 @@
+> **Superseded (October 2026).** This file describes the v1 demo. The current version is [DECISIONS.md](DECISIONS.md).
+
 # Architecture Decision Records
 
 ## ADR-001: PostgreSQL over MongoDB
