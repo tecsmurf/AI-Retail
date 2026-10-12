@@ -1,50 +1,54 @@
-"""Event-related Pydantic schemas."""
+"""Event schemas."""
 
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
-from typing import Optional
+from datetime import UTC, datetime
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+IngestEventType = Literal[
+    "ENTRY", "EXIT", "ZONE_ENTER", "ZONE_EXIT", "QUEUE_ENTER", "QUEUE_EXIT", "QUEUE_COMPLETED", "QUEUE_ABANDONED"
+]
 
 
 class EventCreate(BaseModel):
-    """Schema for creating a new event."""
-    event_type: str = Field(
-        ...,
-        examples=["ZONE_ENTER"],
-        description="Event type: ENTRY, EXIT, ZONE_ENTER, ZONE_EXIT, DWELL_TIME, CHECKOUT, QUEUE_ENTER, QUEUE_EXIT",
-    )
-    customer_id: str = Field(..., examples=["CUST_001"])
-    store_code: str = Field(..., examples=["store_1076"])
-    camera_id: Optional[str] = None
-    zone_id: Optional[str] = None
-    zone_name: Optional[str] = None
-    zone_type: Optional[str] = None
+    """External event ingestion.
+
+    ``event_key`` is the idempotency key: re-sending an event with the same
+    key for the same store is a no-op. If omitted, a key is derived from the
+    event's content, so exact duplicates are still dropped.
+    ``timestamp`` must include a time zone offset (or 'Z').
+    """
+
+    event_type: IngestEventType
+    customer_id: str = Field(..., min_length=1, max_length=100)
+    store_code: str = Field(..., min_length=1, max_length=50)
     timestamp: datetime
-    confidence: Optional[float] = None
-    bbox_x: Optional[float] = None
-    bbox_y: Optional[float] = None
-    bbox_w: Optional[float] = None
-    bbox_h: Optional[float] = None
-    hotspot_x: Optional[float] = None
-    hotspot_y: Optional[float] = None
-    gender: Optional[str] = None
-    age: Optional[int] = None
-    age_bucket: Optional[str] = None
-    is_staff: bool = False
-    queue_wait_seconds: Optional[float] = None
-    queue_position: Optional[int] = None
+    event_key: Optional[str] = Field(None, min_length=8, max_length=80)
+    camera_id: Optional[str] = Field(None, max_length=100)
+    zone_id: Optional[str] = Field(None, max_length=100)
+    zone_name: Optional[str] = Field(None, max_length=200)
+    zone_type: Optional[str] = Field(None, max_length=50)
+    confidence: Optional[float] = Field(None, ge=0, le=1)
+    dwell_seconds: Optional[float] = Field(None, ge=0, le=86400)
+    queue_wait_seconds: Optional[float] = Field(None, ge=0, le=86400)
     queue_abandoned: Optional[bool] = None
-    group_id: Optional[str] = None
-    group_size: Optional[int] = None
-    dwell_seconds: Optional[float] = None
+    is_staff: bool = False
     metadata_json: Optional[dict] = None
+
+    @field_validator("timestamp")
+    @classmethod
+    def _aware(cls, v: datetime) -> datetime:
+        if v.tzinfo is None:
+            raise ValueError("timestamp must include a time zone offset, e.g. 2026-03-08T10:00:00+05:30 or ...Z")
+        return v.astimezone(UTC).replace(tzinfo=None)
 
 
 class EventResponse(BaseModel):
-    """Event response schema."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
     store_id: uuid.UUID
     event_type: str
@@ -54,29 +58,32 @@ class EventResponse(BaseModel):
     zone_name: Optional[str] = None
     zone_type: Optional[str] = None
     timestamp: datetime
+    source: str
+    event_key: Optional[str] = None
+    job_id: Optional[uuid.UUID] = None
+    track_id: Optional[int] = None
+    video_offset_seconds: Optional[float] = None
     confidence: Optional[float] = None
-    gender: Optional[str] = None
-    age: Optional[int] = None
-    age_bucket: Optional[str] = None
-    is_staff: bool = False
+    bbox_x: Optional[float] = None
+    bbox_y: Optional[float] = None
+    bbox_w: Optional[float] = None
+    bbox_h: Optional[float] = None
     dwell_seconds: Optional[float] = None
     queue_wait_seconds: Optional[float] = None
     queue_abandoned: Optional[bool] = None
-    group_id: Optional[str] = None
-    group_size: Optional[int] = None
+    metadata_json: Optional[dict] = None
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+
+class EventPage(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    items: List[EventResponse]
 
 
-class EventFilter(BaseModel):
-    """Filter parameters for querying events."""
-    store_id: Optional[uuid.UUID] = None
-    event_type: Optional[str] = None
-    customer_id: Optional[str] = None
-    zone_name: Optional[str] = None
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
-    is_staff: Optional[bool] = None
-    limit: int = Field(default=100, le=1000)
-    offset: int = Field(default=0, ge=0)
+class IngestResult(BaseModel):
+    received: int
+    inserted: int
+    duplicates: int
+    errors: List[str] = Field(default_factory=list)

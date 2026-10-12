@@ -1,26 +1,21 @@
+# PurpleSol API (no computer-vision stack; see Dockerfile.worker).
 FROM python:3.11-slim
 
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    libgl1 \
-    libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
-# Copy application
-COPY . .
+COPY alembic.ini ./
+COPY alembic ./alembic
+COPY app ./app
+COPY data ./data
 
-# Create data directory for CV events
-RUN mkdir -p /app/data /app/uploads
+RUN useradd --create-home --uid 10001 app && mkdir -p /app/storage && chown app /app/storage
+USER app
 
-# Railway injects PORT env var — default to 8000
-ENV PORT=8000
-EXPOSE ${PORT}
-
-# Run with PORT from environment
-CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
+ENV PORT=8000 APP_ENV=production
+EXPOSE 8000
+# Migrations run as Railway's pre-deploy command (python -m app.migrate).
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]

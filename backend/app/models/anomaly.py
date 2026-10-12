@@ -6,42 +6,25 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import (
-    String,
-    Text,
-    Float,
-    Integer,
-    Boolean,
-    DateTime,
-    ForeignKey,
-    JSON,
-    Index,
-)
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.dialects.postgresql import UUID
 
-from app.database import Base
+from app.database import Base, utcnow
 
 
 class Anomaly(Base):
-    """Detected anomaly in store operations."""
+    """Rule-based anomaly detected from persisted metrics.
+
+    ``dedupe_key`` makes re-running detection over the same window idempotent.
+    """
 
     __tablename__ = "anomalies"
+    __table_args__ = (UniqueConstraint("store_id", "dedupe_key", name="uq_anomalies_dedupe"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    store_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("stores.id", ondelete="CASCADE"), index=True
-    )
-    anomaly_type: Mapped[str] = mapped_column(
-        String(50), index=True
-        # LONG_QUEUE, ABNORMAL_DWELL, TRAFFIC_DROP,
-        # EMPTY_STORE, UNUSUAL_MOVEMENT
-    )
-    severity: Mapped[str] = mapped_column(
-        String(20)  # 'low', 'medium', 'high', 'critical'
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    store_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("stores.id", ondelete="CASCADE"), index=True)
+    anomaly_type: Mapped[str] = mapped_column(String(50), index=True)
+    severity: Mapped[str] = mapped_column(String(20))
     zone_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     description: Mapped[str] = mapped_column(Text)
     metric_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -49,37 +32,30 @@ class Anomaly(Base):
     detected_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     is_resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+    dedupe_key: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     metadata_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     def __repr__(self) -> str:
         return f"<Anomaly {self.anomaly_type}: {self.severity}>"
 
 
 class Alert(Base):
-    """Real-time alert generated from anomaly detection."""
+    """User-facing alert (from an anomaly or a failed processing job)."""
 
     __tablename__ = "alerts"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     anomaly_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("anomalies.id"), nullable=True
+        Uuid, ForeignKey("anomalies.id"), nullable=True
     )
-    store_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("stores.id", ondelete="CASCADE"), index=True
-    )
+    store_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("stores.id", ondelete="CASCADE"), index=True)
     alert_type: Mapped[str] = mapped_column(String(50))
     title: Mapped[str] = mapped_column(String(300))
     message: Mapped[str] = mapped_column(Text)
     severity: Mapped[str] = mapped_column(String(20))
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, index=True
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
     def __repr__(self) -> str:
         return f"<Alert {self.alert_type}: {self.title}>"

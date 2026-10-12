@@ -1,0 +1,35 @@
+{
+  "_about": "Ground truth for the public Intel IoT sample clips (github.com/intel-iot-devkit/sample-videos). Counts were made by the AI agent reviewing frame strips (1-2 s spacing), not by a human annotator. See docs/CV_VALIDATION.md.",
+  "clips": [
+    {
+      "name": "one-by-one",
+      "file": "one-by-one-person-detection.mp4",
+      "camera": {
+        "zones": [{"name": "Table", "zone_type": "DISPLAY", "polygon": [[0.3, 0.55], [0.95, 0.55], [0.95, 1.0], [0.3, 1.0]]}],
+        "entry_line": {"p1": [0.0, 0.97], "p2": [1.0, 0.97], "inside": "left"}
+      },
+      "expected": {
+        "visitors": 6,
+        "entries": 6,
+        "zone_visits": {"Table": 6},
+        "dwell_seconds": {"Table": [12, 20, 17, 11, 25, 11]},
+        "dwell_tolerance_seconds": 3
+      }
+    },
+    {
+      "name": "people-detection",
+      "file": "people-detection.mp4",
+      "camera": {
+        "zones": [],
+        "entry_line": {"p1": [0.0, 0.75], "p2": [1.0, 0.75], "inside": "left"}
+      },
+      "expected": {"visitors": 7, "entries": 7}
+    },
+    {
+      "name": "face-demographics-walking",
+      "file": "face-demographics-walking.mp4",
+      "camera": {"zones": [], "entry_line": null},
+      "expected": {"visitors": 7}
+    }
+  ]
+}

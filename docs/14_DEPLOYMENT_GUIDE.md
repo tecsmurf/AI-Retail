@@ -1,3 +1,5 @@
+> **Superseded (October 2026).** This file describes the v1 demo. The current version is [DEPLOYMENT.md](DEPLOYMENT.md).
+
 # Deployment Guide — Step by Step
 
 ## Quick Deploy Checklist

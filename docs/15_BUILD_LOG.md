@@ -1,3 +1,5 @@
+> **Superseded (October 2026).** This file describes the v1 demo. The current version is [BUILD_LOG.md](BUILD_LOG.md).
+
 # Build Log
 
 ## Day 1 — June 3, 2026

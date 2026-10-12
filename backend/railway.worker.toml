@@ -1,0 +1,11 @@
+# Railway service: PurpleSol video worker. Set this file as the service's
+# config path (Settings > Config-as-code) and give the service >= 2 GB RAM.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.worker"
+
+[deploy]
+restartPolicyType = "ALWAYS"
+# Time for the worker to hand its current job back on redeploy (SIGTERM).
+overlapSeconds = 0
+drainingSeconds = 60
