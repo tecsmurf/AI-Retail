@@ -139,4 +139,4 @@ This gives you a working URL in under 2 minutes. No backend needed.
 | Neon | Yes | 512MB storage |
 | Upstash | Yes | 10K commands/day |
 
-**Total: $0/month for hackathon demo**
+**Total: $0/month on free tiers**

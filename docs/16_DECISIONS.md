@@ -18,7 +18,7 @@
 - Event relationships (journey → events) benefit from foreign keys
 - Neon provides free serverless PostgreSQL
 - SQLAlchemy 2.0 async support is excellent
-- No need for ClickHouse-level scale at hackathon stage
+- No need for ClickHouse-level scale at this stage
 
 **Tradeoffs**: Less flexible schema than MongoDB, but Pydantic handles input validation.
 
