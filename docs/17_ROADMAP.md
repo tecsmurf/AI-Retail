@@ -1,6 +1,6 @@
 # Roadmap
 
-## MVP (Hackathon) ✅
+## Phase 1 — MVP ✅
 - [x] Backend architecture (FastAPI + PostgreSQL)
 - [x] Event-driven data model
 - [x] Analytics engine (footfall, zones, conversion, queue)
@@ -12,7 +12,7 @@
 - [x] CV pipeline architecture (YOLO11 + ByteTrack)
 - [x] Documentation suite
 
-## Phase 2 — Post-Hackathon
+## Phase 2 — Enhancements
 - [x] Process actual CCTV footage through CV pipeline
 - [ ] Hand interaction detection (MediaPipe)
 - [ ] Product pickup/return events

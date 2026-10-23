@@ -77,7 +77,7 @@ visitor and entry counts correct on all 3 counting clips. Method and limits:
 | [IMPLEMENTATION_PLAN](docs/IMPLEMENTATION_PLAN.md) | Phases, status, next steps |
 | [BUILD_LOG](docs/BUILD_LOG.md) | What was done, in order |
 
-Docs numbered `00` to `20` describe the original v1 design and hackathon pitch.
+Docs numbered `00` to `20` describe the original v1 design.
 Where they disagree with the files above, the files above are current.
 
 ## Privacy
@@ -90,5 +90,4 @@ Never commit CCTV footage to this repository.
 
 ## Author
 
-Aditya Khabya ([@tecsmurf](https://github.com/tecsmurf)). Built for the Purplle
-Hackathon 2026.
+Aditya Khabya ([@tecsmurf](https://github.com/tecsmurf)).

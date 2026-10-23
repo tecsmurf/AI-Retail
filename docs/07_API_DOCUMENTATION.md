@@ -5,7 +5,7 @@
 - Production: `https://purplesol-api.railway.app`
 
 ## Authentication
-Currently open (hackathon MVP). Production would use JWT/API keys.
+Currently open (development mode). Production would use JWT/API keys.
 
 ## Endpoints
 

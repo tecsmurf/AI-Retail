@@ -34,3 +34,7 @@ models/*.pt
 # Data (large files)
 purple/Store*/Store*/*.mp4
 *.db
+
+# Legacy hackathon files (local only)
+SUBMISSION.md
+DEPLOYMENT.md
