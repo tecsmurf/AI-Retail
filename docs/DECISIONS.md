@@ -133,3 +133,16 @@ Format: decision, why, what it costs, how to undo.
   reachable. The ground truth was made by the AI agent, not a person, and says so.
   Footage is never committed; `eval/public_clips.json` holds only counts and
   camera layouts.
+
+## D17. Tracking robustness changes (pipeline 2.1)
+
+* Tracks are taken from ByteTrack's own detection association instead of
+  supervision's IoU > 0.5 re-match, which hid people for seconds. Tracks are
+  reported from the first frame, short tracks must also last 0.5 s, fragments
+  are stitched for up to 2 s, and a crossing followed by loss of the track
+  counts. Each was kept only if it did not make any clean or stressed run on the
+  public clips worse; numbers are in docs/CV_VALIDATION.md.
+* YOLO11n stays the default detector. YOLO11s was only marginally better on the
+  public clips at about twice the CPU cost.
+* The evaluator gained `--drop-rate`/`--seed` so a change can be checked against
+  missed detections without new footage.

@@ -105,6 +105,17 @@ def test_short_tracks_are_discarded():
     assert engine.discarded_short_tracks == 1
 
 
+def test_short_tracks_are_measured_in_time_too():
+    # 5 samples at 10 fps span 0.4 s: a flicker, not a person, even though it
+    # has more than min_track_samples observations.
+    cfg = EngineConfig(min_track_samples=3, min_track_seconds=0.5, zone_enter_min_s=0.0)
+    engine = EventEngine([SHELF], config=cfg)
+    assert run(engine, [{1: (0.25, 0.25)}] * 5, dt=0.1) == []
+    assert engine.discarded_short_tracks == 1
+    engine = EventEngine([SHELF], config=cfg)
+    assert types(run(engine, [{1: (0.25, 0.25)}] * 7, dt=0.1)) == ["ZONE_ENTER", "ZONE_EXIT"]
+
+
 def test_track_loss_closes_zone_with_last_seen_time():
     frames = [{1: (0.25, 0.25)}] * 10 + [{}] * 20
     ev = run(EventEngine([SHELF]), frames)
@@ -177,6 +188,20 @@ def test_jitter_on_the_line_is_not_counted():
     frames = []
     for i in range(30):
         frames.append({1: (0.5, 0.52 if i % 2 else 0.48)})  # alternates every sample
+    assert types(run(EventEngine([], LINE), frames)) == []
+
+
+def test_crossing_then_lost_counts_once():
+    # Walks across and leaves the view one sample after the line: still an
+    # ENTRY (the track is finalized as lost, not at video end).
+    frames = [{1: (0.5, 0.3)}] * 5 + [{1: (0.5, 0.6)}] + [{}] * 20
+    assert types(run(EventEngine([], LINE), frames)) == ["ENTRY"]
+    cfg = EngineConfig(line_commit_on_track_end=False)
+    assert types(run(EventEngine([], LINE, cfg), frames)) == []
+
+
+def test_jitter_then_lost_is_not_counted():
+    frames = [{1: (0.5, 0.52 if i % 2 else 0.48)} for i in range(9)] + [{1: (0.5, 0.52)}] + [{}] * 20
     assert types(run(EventEngine([], LINE), frames)) == []
 
 
