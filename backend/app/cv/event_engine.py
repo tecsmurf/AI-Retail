@@ -46,9 +46,16 @@ class EngineConfig:
     queue_enter_min_s: float = 3.0
     queue_service_link_s: float = 10.0
     line_confirm_samples: int = 2
+    # A track that crossed the line and then vanished (walked out of view,
+    # or the detector lost it) before ``line_confirm_samples`` were seen on
+    # the new side still counts, as long as it never came back across.
+    line_commit_on_track_end: bool = True
     line_deadband: float = 0.005
     min_crossing_interval_s: float = 1.0
     min_track_samples: int = 3
+    # ...and must span this long. Keeps the bar the same in time when the
+    # analysis rate goes up (3 samples are 0.4 s at 5 fps but 0.2 s at 10 fps).
+    min_track_seconds: float = 0.5
     # A track not observed for this long is finalized (should be >= the
     # tracker's lost-track buffer so re-acquired tracks keep their state).
     track_end_grace_s: float = 3.0
@@ -121,6 +128,7 @@ class _TrackState:
     pending_queue_zone: Optional[ZonePolygon] = None
     # line crossing
     side: int = 0  # committed side (+1/-1), 0 unknown
+    side_run: int = 0  # consecutive samples on the committed side
     last_point_committed: Optional[Tuple[float, float]] = None
     new_side: int = 0
     new_side_count: int = 0
@@ -176,7 +184,8 @@ class EventEngine:
             if self.entry_line is not None:
                 self._update_line(st, t, point)
             self._update_queue_outcome(st, t)
-            if not st.confirmed and st.samples >= self.cfg.min_track_samples:
+            if (not st.confirmed and st.samples >= self.cfg.min_track_samples
+                    and t - st.first_t + 1e-6 >= self.cfg.min_track_seconds):
                 st.confirmed = True
                 self.events.extend(st.held)
                 st.held = []
@@ -334,9 +343,12 @@ class EventEngine:
             return
         if st.side == 0:
             st.side = side
+            st.side_run = 1
             st.last_point_committed = point
             return
         if side == st.side:
+            # A brief excursion to the other side restarts the run.
+            st.side_run = 1 if st.new_side_count else st.side_run + 1
             st.last_point_committed = point
             st.new_side = 0
             st.new_side_count = 0
@@ -349,23 +361,36 @@ class EventEngine:
         st.new_side_count += 1
         if st.new_side_count < self.cfg.line_confirm_samples:
             return
+        self._commit_crossing(st, "line_crossing")
+        # Either way the track now lives on the new side (a jump around the
+        # end of the line segment is not a crossing).
+        st.side = side
+        st.side_run = st.new_side_count
+        st.last_point_committed = point
+        st.new_side = 0
+        st.new_side_count = 0
+
+    def _commit_crossing(self, st: _TrackState, basis: str) -> None:
+        line = self.entry_line
+        side = st.new_side
         crossed = segments_intersect(st.last_point_committed, st.new_side_first_point, line.p1, line.p2)
         if crossed and st.new_side_first_t - st.last_crossing_t >= self.cfg.min_crossing_interval_s:
             event_type = "ENTRY" if side == line.inside_sign else "EXIT"
-            self._emit(st, EngineEvent(event_type, st.track_id, st.new_side_first_t, meta={"basis": "line_crossing"}))
+            self._emit(st, EngineEvent(event_type, st.track_id, st.new_side_first_t, meta={"basis": basis}))
             st.last_crossing_t = st.new_side_first_t
             if event_type == "ENTRY":
                 st.entered = True
             else:
                 st.exited = True
-        # Either way the track now lives on the new side (a jump around the
-        # end of the line segment is not a crossing).
-        st.side = side
-        st.last_point_committed = point
-        st.new_side = 0
-        st.new_side_count = 0
 
     def _finish_track(self, st: _TrackState, reason: str) -> None:
+        # Only for a track that disappeared (not one still in view at the end
+        # of the video), and only after a steady approach on the old side, so
+        # jitter on the line followed by a lost track is not a crossing.
+        if (self.entry_line is not None and self.cfg.line_commit_on_track_end and reason == "track_lost"
+                and st.side != 0 and st.new_side not in (0, st.side) and st.new_side_count >= 1
+                and st.side_run >= self.cfg.line_confirm_samples):
+            self._commit_crossing(st, "line_crossing_track_end")
         if st.zone is not None:
             self._close_zone(st, st.zone, st.last_t, reason=reason)
             st.zone = None
