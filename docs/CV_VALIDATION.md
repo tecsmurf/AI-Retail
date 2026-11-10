@@ -86,6 +86,81 @@ the zone polygon includes the last steps of the approach to the table.
 needs at least 1 GB of RAM. Speed will differ on Railway's CPUs; check the
 `realtime_factor` that every finished job reports on the Videos page.
 
+## Pipeline 2.1 changes (2026-11-08)
+
+Measured on the same clips and the same AI-made ground truth as above, so the
+same caveats apply. Nothing here has been checked on store footage yet.
+
+### What changed
+
+1. **Tracker output bug fixed.** supervision's `update_with_detections` hands
+   back a detection only if it overlaps the Kalman-filtered track box by IoU
+   > 0.5. When someone speeds up, stops, or walks toward the camera, the filtered
+   box lags behind, and the person disappeared from the output for up to 4 s
+   while ByteTrack still tracked them internally (seen on one-by-one at
+   2.5 fps, right where people cross the entry line). `PersonTracker` now
+   joins every updated track to the detection ByteTrack actually matched it to.
+2. **Tracks are reported from their first detection** (`minimum_consecutive_frames`
+   1, was 2). With 2, a missed detection just after someone appeared delayed or
+   killed the track, and people who crossed the entry line in their first
+   frames were not counted.
+3. **Short tracks are measured in time as well as samples**
+   (`min_track_seconds` 0.5). This keeps one-frame flickers out at 10 fps, where
+   change 2 alone produced one extra visitor on people-detection.
+4. **Track stitching** (`app/cv/stitcher.py`). A new tracker id that appears
+   within 2 s near where a lost visitor was heading, with a similar box size,
+   continues that visitor instead of counting a new one. Tracks lost at the
+   frame edge, far-away matches and ambiguous matches are never joined.
+5. **Line crossing at track end.** Someone who crosses the entry line and leaves
+   the view (or is lost) before two samples on the new side is still counted,
+   unless they were jittering on the line.
+
+### Results
+
+`visitor err` and `entry err` are the summed absolute error over the three
+clips (20 visitors, 13 entries per pass); "drop" rows discard that share of
+detections at random, 5 seeds each, to imitate occlusion and blur. YOLO11n,
+640 px, detections cached once and replayed through both versions.
+
+| Stress | Version | Visitor error | Entry error | Clips fully right |
+|---|---|---|---|---|
+| none, 5 fps | before / after | 0 / 0 | 0 / 0 | 3/3 / 3/3 |
+| none, 10 fps | before / after | 0 / 0 | 0 / 0 | 3/3 / 3/3 |
+| 2.5 fps | before / after | 2 / 1 | 8 / 0 | 1/3 / 2/3 |
+| 1.7 fps | before / after | 7 / 3 | 12 / 3 | 0/3 / 2/3 |
+| 15% detections dropped, 5 fps | before / after | 1 / 0 | 10 / 1 | 8/15 / 14/15 |
+| 30% detections dropped, 5 fps | before / after | 4 / 1 | 23 / 7 | 5/15 / 8/15 |
+| 30% detections dropped, 10 fps | before / after | 0 / 0 | 3 / 0 | 12/15 / 15/15 |
+
+Zone visit counts were right in every run of both versions. Dwell at 2.5 fps
+improved because people are no longer hidden while standing at the table:
+before, one-by-one gave 7.6 s and 4.4 s for visits of about 12 s and 11 s; after,
+12.0 s and 11.2 s. At 5 fps the pipeline's dwell is now 0.2 to 0.4 s longer
+than in the table above (still within the ±3 s tolerance), because the box used
+is the detection itself rather than the smoothed track box.
+
+The only remaining error on clean clips: at 2.5 fps face-demographics-walking
+gives 8 visitors for 7 (people walking straight at the camera grow faster than
+the stitcher allows). Default speed (5 fps) is unchanged at about 3.5x realtime.
+
+Reproduce the end-to-end checks:
+
+```bash
+python -m app.cv.evaluate eval/public_clips.json --media-dir DIR --fps 2.5
+python -m app.cv.evaluate eval/public_clips.json --media-dir DIR --drop-rate 0.3 --seed 1
+```
+
+### Larger detector
+
+YOLO11s vs YOLO11n on 36 evenly spaced frames (confidence 0.35): store-aisle 40
+vs 39 people found, other clips identical, no false boxes from either. The one
+extra was a man cut off at the frame edge. Running YOLO11n at 960 px found the
+same total but swapped a real person for a duplicate box, so it is not an
+improvement. YOLO11s costs about 1.9x the detector time on CPU. Through the
+stress table above it did not do better than YOLO11n. YOLO11n stays the
+default; for crowded stores with CPU to spare, set `YOLO_MODEL=yolo11s.pt` and
+compare on that store's clips before switching.
+
 ## Findings that affect setup
 
 1. **The entry line has to be drawn where feet actually cross it.** The first lab
@@ -122,6 +197,6 @@ needs at least 1 GB of RAM. Speed will differ on Railway's CPUs; check the
 * Queue wait and abandonment on real billing footage. They are only covered by
   unit tests on synthetic tracks (`tests/test_cv_logic.py`,
   `tests/test_video_pipeline.py`).
-* Larger models. `yolo11s` should recover some partly visible people at roughly
-  2 to 3 times the CPU cost. It has not been compared on these clips.
+* Larger models on store footage. On the public clips `yolo11s` found one more
+  partly visible person in 36 frames at about 1.9x the CPU cost (see above).
 * Night, IR, rain, glare and very crowded scenes.

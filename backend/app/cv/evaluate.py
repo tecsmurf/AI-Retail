@@ -1,22 +1,30 @@
 """Compare pipeline output with hand-counted ground truth.
 
     python -m app.cv.evaluate eval/public_clips.json --media-dir DIR [--fps 5]
+        [--drop-rate 0.15 --seed 0]
 
 The ground-truth file lists clips, the camera layout to use for each and the
 expected counts (visitors = distinct people, entries = entry-line crossings,
 zone visits and per-visit dwell). Videos are read from ``--media-dir`` and are
 never stored in the repository. Prints one row per clip and exits non-zero if
 any expected value is missed, so it can gate a model or tracker change.
+
+Stress options approximate harder footage on clean clips: ``--fps`` lowers
+the analysis rate (bigger jumps between frames), ``--drop-rate`` discards
+that fraction of detections at random (``--seed`` makes it repeatable), the
+way occlusion, blur and compression make a real detector miss people.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import random
 import sys
 from collections import Counter
 from pathlib import Path
 
+from app.cv.detector import get_detector
 from app.cv.event_engine import EntryLine
 from app.cv.pipeline import PipelineConfig, run_pipeline
 from app.cv.zone_mapper import ZonePolygon
@@ -31,12 +39,27 @@ def _camera(spec: dict):
     return zones, EntryLine.from_dict(spec.get("entry_line"))
 
 
-def evaluate_clip(clip: dict, media_dir: Path, cfg: PipelineConfig) -> dict:
+class DroppingDetector:
+    """Wraps a detector and randomly discards a fraction of its detections."""
+
+    def __init__(self, inner, rate: float, seed: int) -> None:
+        self.inner = inner
+        self.rate = rate
+        self.rng = random.Random(seed)
+
+    def __getattr__(self, name):
+        return getattr(self.inner, name)
+
+    def detect(self, frame, confidence=None):
+        return [d for d in self.inner.detect(frame, confidence=confidence) if self.rng.random() >= self.rate]
+
+
+def evaluate_clip(clip: dict, media_dir: Path, cfg: PipelineConfig, detector=None) -> dict:
     zones, line = _camera(clip["camera"])
-    result = run_pipeline(str(media_dir / clip["file"]), zones, line, cfg)
+    result = run_pipeline(str(media_dir / clip["file"]), zones, line, cfg, detector=detector)
     types = Counter(e.event_type for e in result.events)
     exp = clip["expected"]
-    got: dict = {"visitors": result.stats.get("tracks_created")}
+    got: dict = {"visitors": result.stats.get("visitors", result.stats.get("tracks_created"))}
     if "entries" in exp:
         got["entries"] = types.get("ENTRY", 0)
     checks = {k: got[k] == exp[k] for k in got if k in exp}
@@ -65,6 +88,8 @@ def main(argv=None) -> int:
     parser.add_argument("truth", type=Path)
     parser.add_argument("--media-dir", type=Path, required=True)
     parser.add_argument("--fps", type=float, default=None)
+    parser.add_argument("--drop-rate", type=float, default=0.0, help="discard this fraction of detections")
+    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--json", action="store_true", help="print full JSON results")
     args = parser.parse_args(argv)
 
@@ -77,7 +102,10 @@ def main(argv=None) -> int:
         if not (args.media_dir / clip["file"]).exists():
             print(f"SKIP {clip['name']}: {clip['file']} not found in {args.media_dir}", file=sys.stderr)
             continue
-        results.append(evaluate_clip(clip, args.media_dir, cfg))
+        detector = None
+        if args.drop_rate:
+            detector = DroppingDetector(get_detector(), args.drop_rate, args.seed)
+        results.append(evaluate_clip(clip, args.media_dir, cfg, detector))
 
     if args.json:
         print(json.dumps(results, indent=2))

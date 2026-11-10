@@ -1,7 +1,7 @@
 """End-to-end CV pipeline for one video from one camera.
 
     video file -> probe -> time-based frame sampling -> YOLO person detection
-    -> ByteTrack -> normalized coordinates -> zone assignment
+    -> ByteTrack -> normalized coordinates -> track stitching -> zone assignment
     -> EventEngine (debounced zone/queue/line events) -> PipelineResult
 
 The pipeline is synchronous and CPU/GPU bound; the worker runs it in a
@@ -21,11 +21,12 @@ from typing import Callable, Dict, List, Optional, Sequence
 
 from app.cv.detector import PersonDetector, get_detector
 from app.cv.event_engine import EngineConfig, EngineEvent, EntryLine, EventEngine
+from app.cv.stitcher import StitchConfig, TrackStitcher
 from app.cv.tracker import PersonTracker, TrackerConfig
 from app.cv.video_io import DecodeStats, VideoError, VideoMeta, iter_sampled_frames, probe_video
 from app.cv.zone_mapper import ZonePolygon
 
-PIPELINE_VERSION = "2.0.0"
+PIPELINE_VERSION = "2.1.0"
 
 
 class Cancelled(Exception):
@@ -38,6 +39,7 @@ class PipelineConfig:
     detector_confidence: float = 0.1  # low on purpose: ByteTrack uses low-score boxes
     tracker: TrackerConfig = field(default_factory=TrackerConfig)
     engine: EngineConfig = field(default_factory=EngineConfig)
+    stitch: StitchConfig = field(default_factory=StitchConfig)
     max_video_seconds: Optional[float] = None
     snapshot_count: int = 6
 
@@ -47,6 +49,7 @@ class PipelineConfig:
             "detector_confidence": self.detector_confidence,
             "tracker": self.tracker.as_dict(),
             "engine": self.engine.as_dict(),
+            "stitch": self.stitch.as_dict(),
             "max_video_seconds": self.max_video_seconds,
         }
 
@@ -55,8 +58,9 @@ class PipelineConfig:
         data = dict(data or {})
         tracker = TrackerConfig(**(data.pop("tracker", None) or {}))
         engine = EngineConfig(**(data.pop("engine", None) or {}))
+        stitch = StitchConfig(**(data.pop("stitch", None) or {}))
         allowed = {"analysis_fps", "detector_confidence", "max_video_seconds", "snapshot_count"}
-        return cls(tracker=tracker, engine=engine, **{k: v for k, v in data.items() if k in allowed})
+        return cls(tracker=tracker, engine=engine, stitch=stitch, **{k: v for k, v in data.items() if k in allowed})
 
 
 @dataclass
@@ -126,6 +130,7 @@ def run_pipeline(
     det = detector or get_detector()
     det.load()
     tracker = PersonTracker(frame_rate=analysis_fps, config=cfg.tracker)
+    stitcher = TrackStitcher(cfg.stitch)
     engine = EventEngine(zones, entry_line, cfg.engine)
     decode = DecodeStats()
 
@@ -160,6 +165,7 @@ def run_pipeline(
                 (tb.track_id, (tb.bbox[0] / w, tb.bbox[1] / h, tb.bbox[2] / w, tb.bbox[3] / h), tb.confidence)
                 for tb in tracked
             ]
+            observations = stitcher.update(ts, observations)
             engine.update(ts, observations)
 
             if tracks_fh is not None:
@@ -216,6 +222,10 @@ def run_pipeline(
         "mean_detections_per_frame": round(total_detections / max(1, decode.frames_sampled), 3),
         "max_people_in_frame": max_people,
         "tracks_created": len(tracker.ids_seen),
+        "track_stitches": stitcher.stitches,
+        # Distinct people: stitched tracks that lived long enough to be
+        # confirmed by the event engine (short flickers are not people).
+        "visitors": engine.finished_tracks - engine.discarded_short_tracks,
         "tracks_discarded_short": engine.discarded_short_tracks,
         "events": counts,
         "event_total": len(events),
