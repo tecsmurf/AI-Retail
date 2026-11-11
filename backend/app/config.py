@@ -109,6 +109,11 @@ class Settings(BaseSettings):
     job_timeout_seconds: int = Field(default=6 * 3600, alias="JOB_TIMEOUT_SECONDS")
     worker_tmp_dir: str = Field(default="/tmp/purplesol-worker", alias="WORKER_TMP_DIR")
 
+    # Edge boxes (in-store live analysis)
+    edge_heartbeat_seconds: int = Field(default=30, alias="EDGE_HEARTBEAT_SECONDS")
+    edge_analysis_fps: float = Field(default=5.0, alias="EDGE_ANALYSIS_FPS")
+    edge_pairing_minutes: int = Field(default=30, alias="EDGE_PAIRING_MINUTES")
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"

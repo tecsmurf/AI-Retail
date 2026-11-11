@@ -23,8 +23,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base, utcnow
 
 # Where a record came from. Analytics include only REAL_SOURCES by default.
-EVENT_SOURCES = ("cv", "api", "sample", "demo", "legacy_cv")
-REAL_SOURCES = ("cv", "api")
+# cv = processed recordings, edge = live streams analysed by an in-store box.
+EVENT_SOURCES = ("cv", "edge", "api", "sample", "demo", "legacy_cv")
+REAL_SOURCES = ("cv", "edge", "api")
 
 EVENT_TYPES = (
     "ENTRY",

@@ -19,9 +19,10 @@ from datetime import datetime, timedelta
 from statistics import mean, median
 from typing import Dict, List, Optional, Sequence
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.edge import EdgeCoverage
 from app.models.event import Event
 from app.models.jobs import JOB_COMPLETED, OccupancySample, ProcessingJob, VideoAsset
 from app.models.pos import POSTransaction
@@ -103,7 +104,8 @@ async def data_extent(db: AsyncSession, store: Store) -> Dict:
 
 
 async def coverage(db: AsyncSession, store_id: uuid.UUID, tr: TimeRange) -> Dict:
-    """Which cameras have processed footage in the range (seconds of video)."""
+    """Which cameras were watched in the range: seconds of processed
+    recordings and seconds of live stream analysed by an edge box."""
     rows = await db.execute(
         select(Camera.camera_code, Camera.camera_type, ProcessingJob.results)
         .join(ProcessingJob, ProcessingJob.camera_id == Camera.id)
@@ -120,14 +122,33 @@ async def coverage(db: AsyncSession, store_id: uuid.UUID, tr: TimeRange) -> Dict
         if (results or {}).get("superseded_by"):
             continue
         secs = float((results or {}).get("decoded_seconds") or 0)
-        cam = per_camera.setdefault(code, {"camera_type": ctype, "videos": 0, "seconds": 0.0})
+        cam = per_camera.setdefault(code, {"camera_type": ctype, "videos": 0, "seconds": 0.0, "live_seconds": 0.0})
         cam["videos"] += 1
         cam["seconds"] += secs
+    live = await db.execute(
+        select(Camera.camera_code, Camera.camera_type, func.sum(EdgeCoverage.seconds))
+        .join(EdgeCoverage, EdgeCoverage.camera_id == Camera.id)
+        .where(
+            EdgeCoverage.store_id == store_id,
+            # Hour buckets: include the bucket the range starts in.
+            EdgeCoverage.hour >= tr.start_utc - timedelta(minutes=59),
+            EdgeCoverage.hour < tr.end_utc,
+        )
+        .group_by(Camera.camera_code, Camera.camera_type)
+    )
+    for code, ctype, secs in live.all():
+        cam = per_camera.setdefault(code, {"camera_type": ctype, "videos": 0, "seconds": 0.0, "live_seconds": 0.0})
+        cam["live_seconds"] = round(float(secs or 0), 1)
+    recorded = [c for c in per_camera.values() if c["videos"]]
+    watched_live = [c for c in per_camera.values() if c["live_seconds"] > 0]
     return {
         "cameras": per_camera,
-        "has_entrance_footage": any(c["camera_type"] == "entrance" for c in per_camera.values()),
-        "has_queue_footage": any(c["camera_type"] == "billing" for c in per_camera.values()),
+        "has_entrance_footage": any(c["camera_type"] == "entrance" for c in recorded),
+        "has_queue_footage": any(c["camera_type"] == "billing" for c in recorded),
         "processed_video_seconds": round(sum(c["seconds"] for c in per_camera.values()), 1),
+        "has_live_entrance": any(c["camera_type"] == "entrance" for c in watched_live),
+        "has_live_queue": any(c["camera_type"] == "billing" for c in watched_live),
+        "live_seconds": round(sum(c["live_seconds"] for c in per_camera.values()), 1),
     }
 
 
@@ -224,7 +245,13 @@ async def queue(db: AsyncSession, store: Store, tr: TimeRange, sources: Sequence
         waits = [float(e.queue_wait_seconds) for e in events if e.event_type == "QUEUE_COMPLETED" and e.queue_wait_seconds]
 
     samples = []
+    # Samples from recordings carry their job; live (edge) samples have none.
+    origin = []
     if "cv" in sources:
+        origin.append(OccupancySample.job_id.is_not(None))
+    if "edge" in sources:
+        origin.append(OccupancySample.job_id.is_(None))
+    if origin:
         rows = await db.execute(
             select(OccupancySample.timestamp, OccupancySample.count, OccupancySample.zone_name)
             .where(
@@ -232,6 +259,7 @@ async def queue(db: AsyncSession, store: Store, tr: TimeRange, sources: Sequence
                 OccupancySample.zone_type == "QUEUE",
                 OccupancySample.timestamp >= tr.start_utc,
                 OccupancySample.timestamp < tr.end_utc,
+                or_(*origin),
             )
             .order_by(OccupancySample.timestamp)
         )
@@ -344,7 +372,7 @@ async def conversion(db: AsyncSession, store: Store, tr: TimeRange, sources: Seq
     if not rev["available"]:
         notes.append(rev["reason"])
     elif entries == 0:
-        notes.append("No ENTRY events in this range (no processed entrance footage or no entry line configured).")
+        notes.append("No ENTRY events in this range (no entrance camera footage or live stream, or no entry line configured).")
     elif not tx:
         notes.append("No POS transactions in this range.")
     else:

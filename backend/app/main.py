@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 
 from app.api.analytics import router as analytics_router
 from app.api.auth import router as auth_router
+from app.api.edge import router as edge_router
 from app.api.events import router as events_router
 from app.api.org import router as org_router
 from app.api.pos import router as pos_router
@@ -110,7 +111,7 @@ async def request_context(request: Request, call_next):
 
 
 for r in (system_router, auth_router, users_router, org_router, stores_router, events_router, analytics_router,
-          videos_router, pos_router):
+          videos_router, pos_router, edge_router):
     app.include_router(r)
 
 

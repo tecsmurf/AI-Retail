@@ -118,8 +118,9 @@ class OccupancySample(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     store_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("stores.id", ondelete="CASCADE"), index=True)
-    job_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("processing_jobs.id", ondelete="CASCADE"), index=True
+    # None for samples from a live stream (edge box), which has no job.
+    job_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid, ForeignKey("processing_jobs.id", ondelete="CASCADE"), index=True, nullable=True
     )
     camera_code: Mapped[str] = mapped_column(String(50))
     zone_name: Mapped[str] = mapped_column(String(200))

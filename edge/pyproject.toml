@@ -1,0 +1,23 @@
+[project]
+name = "purplesol-edge"
+version = "0.1.0"
+description = "In-store edge box: analyses CCTV streams on site, sends anonymous events to the cloud"
+requires-python = ">=3.11"
+
+[tool.setuptools]
+packages = ["purplesol_edge"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "B904", "UP006", "UP007", "UP035"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "purplesol_edge"]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+markers = ["cv: runs the tracking pipeline on a small synthetic video"]

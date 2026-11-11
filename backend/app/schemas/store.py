@@ -99,6 +99,8 @@ class CameraResponse(BaseModel):
     has_reference_frame: bool = False
     reference_frame_width: Optional[int] = None
     reference_frame_height: Optional[int] = None
+    # Changes whenever the still image changes (cache key for the browser).
+    reference_frame_version: Optional[str] = None
     config_version: int = 1
 
 

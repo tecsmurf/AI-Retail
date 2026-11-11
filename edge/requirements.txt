@@ -1,0 +1,11 @@
+# Edge box: the computer-vision part of backend/requirements-worker.txt (same
+# pinned versions), without the web server and database drivers.
+# Install PyTorch first from the CPU index to avoid ~2 GB of CUDA libraries:
+#   pip install --index-url https://download.pytorch.org/whl/cpu torch==2.5.1 torchvision==0.20.1
+pydantic==2.10.4
+pydantic-settings==2.7.1
+ultralytics==8.3.52
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+supervision==0.25.1
+lap==0.5.12
