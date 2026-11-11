@@ -1,4 +1,4 @@
-"""Person detection with Ultralytics YOLO11.
+"""Person detection with Ultralytics YOLO26 (YOLO11 also supported).
 
 * The model is loaded once per process and reused (``get_detector``).
 * Only COCO class 0 (person) is returned.
@@ -60,7 +60,7 @@ def resolve_model_path(name: str) -> str:
             return str(c)
     raise ModelLoadError(
         f"Model file '{name}' not found (looked in {', '.join(str(c) for c in candidates)}). "
-        "The worker image bundles yolo11n.pt; set YOLO_MODEL to a path that exists."
+        "The worker image bundles yolo26s.pt and yolo11n.pt; set YOLO_MODEL to a path that exists."
     )
 
 
