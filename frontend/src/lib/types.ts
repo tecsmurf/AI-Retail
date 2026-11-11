@@ -146,6 +146,8 @@ export interface Camera {
   has_reference_frame: boolean;
   reference_frame_width: number | null;
   reference_frame_height: number | null;
+  /** Changes whenever the still image is replaced (used to refresh the browser's copy). */
+  reference_frame_version: string | null;
   config_version: number;
 }
 
@@ -250,10 +252,14 @@ export interface Conversion {
 }
 
 export interface Coverage {
-  cameras: Record<string, { camera_type: string; videos: number; seconds: number }>;
+  /** `seconds` is processed recordings, `live_seconds` is live stream analysed by an in-store box. */
+  cameras: Record<string, { camera_type: string; videos: number; seconds: number; live_seconds: number }>;
   has_entrance_footage: boolean;
   has_queue_footage: boolean;
   processed_video_seconds: number;
+  has_live_entrance: boolean;
+  has_live_queue: boolean;
+  live_seconds: number;
 }
 
 export interface Overview extends Envelope {
@@ -489,4 +495,47 @@ export interface Readiness {
   status: "ready" | "not_ready";
   version: string;
   checks: Record<string, { ok: boolean; error?: string; [k: string]: unknown }>;
+}
+
+// ── In-store boxes (live cameras) ────────────────────────────────
+
+export type EdgeCameraStatus = "online" | "connecting" | "offline" | "error" | "unconfigured" | "unknown";
+
+export interface EdgeCamera {
+  camera_id: string;
+  camera_code: string;
+  name: string;
+  camera_type: CameraType;
+  status: EdgeCameraStatus;
+  message: string | null;
+  fps: number | null;
+  last_frame_at: string | null;
+  width: number | null;
+  height: number | null;
+}
+
+export interface EdgeDevice {
+  id: string;
+  store_id: string;
+  name: string;
+  status: "pending" | "active" | "revoked";
+  online: boolean;
+  hostname: string | null;
+  agent_version: string | null;
+  last_seen_at: string | null;
+  paired_at: string | null;
+  events_received: number;
+  last_event_at: string | null;
+  stats: { queued?: number; sent_events?: number; dropped?: number };
+  cameras: EdgeCamera[];
+  /** Only present in the response that created the code. */
+  pairing_code: string | null;
+  pairing_expires_at: string | null;
+  pairing_expired: boolean;
+}
+
+export interface EdgeDeviceList {
+  items: EdgeDevice[];
+  heartbeat_seconds: number;
+  online_window_seconds: number;
 }

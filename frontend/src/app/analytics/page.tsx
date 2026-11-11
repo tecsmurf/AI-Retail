@@ -59,8 +59,8 @@ function FootfallSection({ o }: { o: Overview }) {
         <Stat label="Avg. entries / day" value={fmtInt(ff.avg_daily_entries)} />
         <Stat label="Busiest hour" value={ff.peak_hour ?? "—"} sub={ff.peak_hour ? `${ff.peak_hour_entries} entries` : undefined} />
       </div>
-      {!o.coverage.has_entrance_footage && ff.entries === 0 && (
-        <Note>Entries are only counted on entrance cameras that have an entry line. Draw one under Cameras &amp; zones, then process a recording.</Note>
+      {!o.coverage.has_entrance_footage && !o.coverage.has_live_entrance && ff.entries === 0 && (
+        <Note>Entries are only counted on entrance cameras that have an entry line. Draw one under Cameras &amp; zones, then connect the camera or process a recording.</Note>
       )}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

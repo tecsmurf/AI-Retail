@@ -146,3 +146,45 @@ Format: decision, why, what it costs, how to undo.
   public clips at about twice the CPU cost.
 * The evaluator gained `--drop-rate`/`--seed` so a change can be checked against
   missed detections without new footage.
+
+# Decisions (chain product, November 2026)
+
+Numbering starts at D19 because D18 is used by the website redesign.
+
+## D19. Organisations, regions and four roles
+
+* Every user, store and POS row belongs to one organisation. Stores can sit in
+  a region. Roles: HQ admin, HQ viewer (both see every store), regional manager
+  and store manager (see only the regions and stores they were given).
+* A resource outside the caller's scope answers 404, not 403, so its existence
+  is not revealed. Scoping lives in one place (`app/access.py`).
+* Existing data moves into a "Default organisation" in migration `0003`, so a
+  v2 database upgrades in place. Store codes are unique per organisation.
+* Email addresses stay unique across organisations (one login, one
+  organisation). **Cost:** a consultant working for two chains needs two emails.
+* Every change to people, stores, cameras, videos and boxes writes an audit
+  row in the same transaction as the change.
+* The ingest API key can target an organisation with the `X-PurpleSol-Org`
+  header; without it events go to the default organisation as before.
+* Request metrics (`/api/system/metrics`) are for the operator only (admins of
+  the default organisation), because they describe the whole service.
+
+## D20. Live cameras through a box in the store, not through the cloud
+
+* **Decision:** a small program on a store PC reads the recorder's streams,
+  runs the same tracking code as the video worker and sends events. The cloud
+  never connects into the store and never receives video.
+* **Why:** store recorders sit behind NAT; opening ports or uploading
+  continuous video is what chains refuse. It also keeps recorder passwords out
+  of our database: stream addresses live only in the box's `edge.json`.
+* A box is paired with a single-use code and then uses a token of which only
+  the hash is stored. Replacing or removing a box cuts the old one off at once.
+* Live events use their own source (`edge`) and count as real data. Queue
+  samples from live streams have no job. Live time is stored as seconds per
+  camera and hour, so the dashboard can show how much was actually watched.
+* One still image per camera is sent for drawing zones. It is the only picture
+  that leaves the store; see `EDGE.md` for when.
+* **Cost:** a PC per store has to run the box, and its CPU limits the number
+  of cameras. **Not yet done:** a run against a real recorder.
+* **Undo:** remove `edge/`, the `/api/edge*` routes and migration `0004`; video
+  upload keeps working without it.

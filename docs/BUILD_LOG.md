@@ -61,3 +61,20 @@ Continues `15_BUILD_LOG.md`, which covers the v1 demo build.
 ### Not done
 * Validation on the store's own CCTV clips: the owner's PC was offline.
 * Cloud deployment: no Railway, Neon, R2 or Vercel credentials were provided.
+
+## Chain product (November 2026)
+
+### Chains, roles and audit log
+* Organisations, regions, four roles with per-store and per-region access,
+  team management, an "All stores" comparison page and an activity log.
+* 15 access tests: every analytics, video, POS and setup route was checked from
+  a second organisation and from a store manager of another store.
+
+### In-store box (live cameras)
+* API for pairing, configuration, health, events and still images; the box
+  program in `edge/`; a "Live cameras" card on the setup page.
+* 106 backend tests pass on SQLite and on Postgres; 10 box tests pass.
+* Run by hand against a looped test clip served as a live stream: pairing from
+  the dashboard, live status, still image in the zone editor, events on the
+  overview, reconnect after the stream stopped, catching up after the API was
+  stopped. Not run against a real recorder. Details in `EDGE.md`.

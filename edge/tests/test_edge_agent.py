@@ -133,6 +133,8 @@ class FakeClient:
                 "config_version": self.config_version, "heartbeat_seconds": 30}
 
     def heartbeat(self, payload):
+        if self.fail:
+            raise self.fail
         self.beats.append(payload)
         return {"config_changed": payload["config_version"] != self.config_version,
                 "snapshot_requests": self.snapshot_requests}
@@ -152,6 +154,7 @@ class StubWorker:
         self.camera, self.url, self.code = camera, url, camera["camera_code"]
         self.started = self.stopped = self.want_still = False
         self.still = None
+        self.analysed = 30.0
 
     def start(self):
         self.started = True
@@ -163,7 +166,11 @@ class StubWorker:
         pass
 
     def health(self):
-        return {"camera_id": self.camera["camera_id"], "status": "online", "analysed_seconds": 30.0}
+        analysed, self.analysed = self.analysed, 0.0
+        return {"camera_id": self.camera["camera_id"], "status": "online", "analysed_seconds": analysed}
+
+    def add_analysed(self, seconds):
+        self.analysed += seconds
 
     def request_still(self):
         self.want_still = True
@@ -221,6 +228,26 @@ def test_agent_keeps_events_while_offline_and_drops_rejected_batches(tmp_path):
     with pytest.raises(Unauthorized):
         agent.flush()
     assert outbox.count() == 1  # kept for after re-pairing
+    outbox.close()
+
+
+def test_analysed_time_is_reported_after_a_failed_check_in(tmp_path, caplog):
+    client = FakeClient()
+    agent, outbox = make_agent(tmp_path, client)
+    agent.apply_config(client.config())
+    client.fail = ApiError(0, "cannot reach the cloud")
+    with caplog.at_level("WARNING", logger="purplesol_edge"):
+        for _ in range(3):
+            with pytest.raises(ApiError):
+                agent.heartbeat()
+            agent._offline("cannot reach the cloud")
+    # A long outage is logged once, not on every attempt.
+    assert sum("cloud not reachable" in r.message for r in caplog.records) == 1
+    client.fail = None
+    agent.heartbeat()
+    assert client.beats[-1]["cameras"][0]["analysed_seconds"] == 30.0 and agent.last_error is None
+    agent.heartbeat()
+    assert client.beats[-1]["cameras"][0]["analysed_seconds"] == 0.0
     outbox.close()
 
 

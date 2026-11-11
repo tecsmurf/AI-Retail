@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useDashboard } from "@/components/dashboard";
+import { EdgeBoxes } from "@/components/edge-boxes";
 import { useSession } from "@/components/session";
 import { ZoneEditor } from "@/components/zone-editor";
 import { Badge, Button, Card, CardTitle, Empty, ErrorState, Field, Loading, Note, PageHeader, inputClass } from "@/components/ui";
@@ -34,11 +35,6 @@ export default function SetupPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="min-w-0 space-y-4">
           <StoresCard />
-          {store && isAdmin && (
-            <StoreSettings key={store.id} store={store} regions={regions.data?.items ?? []}
-              onSaved={() => { d.reloadStores(); regions.reload(); }} />
-          )}
-          {isAdmin && <RegionsCard regions={regions.data?.items} error={regions.error} reload={regions.reload} />}
           {store && (
             <Card>
               <CardTitle title="Cameras" hint={store.name} />
@@ -62,6 +58,12 @@ export default function SetupPage() {
               {isAdmin && <AddCamera storeId={store.id} onAdded={(c) => { cams.reload(); setCameraId(c.id); }} />}
             </Card>
           )}
+          {store && <EdgeBoxes key={`edge:${store.id}`} store={store} canManage={isAdmin} onCamerasChanged={cams.reload} />}
+          {store && isAdmin && (
+            <StoreSettings key={store.id} store={store} regions={regions.data?.items ?? []}
+              onSaved={() => { d.reloadStores(); regions.reload(); }} />
+          )}
+          {isAdmin && <RegionsCard regions={regions.data?.items} error={regions.error} reload={regions.reload} />}
         </div>
         <div className="min-w-0 lg:col-span-2">
           {camera ? (

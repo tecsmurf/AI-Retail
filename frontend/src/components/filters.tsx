@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CalendarRange, Database, Store as StoreIcon } from "lucide-react";
 import { api } from "@/lib/api";
 import type { DataExtent } from "@/lib/types";
-import { SOURCE_LABELS, addDays, cn, fmtDay, todayIn } from "@/lib/utils";
+import { SOURCE_LABELS, addDays, cn, fmtDay, isRealSource, todayIn } from "@/lib/utils";
 import { useDashboard } from "./dashboard";
 import { Badge, Button, inputClass } from "./ui";
 
@@ -27,10 +27,10 @@ export function FilterBar({ showStore = true }: { showStore?: boolean }) {
     try {
       const ext = await api<DataExtent>(`/api/analytics/${d.store.id}/data-extent`);
       const sources = Object.entries(ext.sources).filter(([k, v]) =>
-        k !== "pos" && v.last_local_date && (d.data === "all" || k === "cv" || k === "api"));
+        k !== "pos" && v.last_local_date && (d.data === "all" || isRealSource(k)));
       const last = sources.map(([, v]) => v.last_local_date as string).sort().pop();
       if (!last) {
-        setJumpNote(d.data === "real" ? "No processed video data yet for this store." : "No data for this store.");
+        setJumpNote(d.data === "real" ? "No camera data yet for this store." : "No data for this store.");
         return;
       }
       d.setRange(addDays(last, -6), last);
@@ -66,7 +66,7 @@ export function FilterBar({ showStore = true }: { showStore?: boolean }) {
           {d.start === d.end ? fmtDay(d.start) : `${fmtDay(d.start)} – ${fmtDay(d.end)}`}
         </Button>
         <Button onClick={() => d.setData(d.data === "real" ? "all" : "real")}
-          title="Real data = processed video and API events. All data adds the bundled sample, demo and legacy v1 records.">
+          title="Real data = live cameras, processed video and API events. All data adds the bundled sample, demo and legacy v1 records.">
           <Database className="h-4 w-4" />
           {d.data === "real" ? "Real data" : "All data"}
         </Button>
@@ -113,7 +113,7 @@ export function SourceLine({ breakdown }: { breakdown: Record<string, number> | 
     <div className="flex flex-wrap items-center gap-1.5 text-xs text-[var(--text-muted)]">
       <span>Events in range by source:</span>
       {entries.map(([s, n]) => (
-        <Badge key={s} tone={s === "cv" || s === "api" ? "good" : "warn"}>
+        <Badge key={s} tone={isRealSource(s) ? "good" : "warn"}>
           {SOURCE_LABELS[s] ?? s}: {n.toLocaleString("en-IN")}
         </Badge>
       ))}
