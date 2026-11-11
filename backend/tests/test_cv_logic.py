@@ -252,3 +252,16 @@ def test_bytetrack_keeps_one_identity_across_misses():
     for dets in _walk():
         ids |= {t.track_id for t in tracker.update(dets)}
     assert len(ids) == 1
+
+
+def test_ultralytics_telemetry_disabled():
+    from ultralytics import settings as yolo_settings
+
+    from app.cv.detector import disable_ultralytics_telemetry
+
+    yolo_settings.update({"sync": True})
+    disable_ultralytics_telemetry()
+    assert yolo_settings.get("sync") is False
+    from ultralytics.hub import utils as hub_utils
+
+    assert hub_utils.events.enabled is False

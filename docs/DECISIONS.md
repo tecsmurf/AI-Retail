@@ -146,3 +146,11 @@ Format: decision, why, what it costs, how to undo.
   public clips at about twice the CPU cost.
 * The evaluator gained `--drop-rate`/`--seed` so a change can be checked against
   missed detections without new footage.
+
+## D18. Ultralytics usage analytics switched off
+
+* Ultralytics sends anonymous usage events to Google Analytics unless its
+  `sync` setting is off. The worker turns it off (setting and the already
+  created event sender) before loading the model, so store deployments make no
+  calls to third parties. Found during the 11 Nov 2026 end-to-end test
+  (docs/TEST_REPORT_2026-11-11.md).
