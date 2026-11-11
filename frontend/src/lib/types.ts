@@ -539,3 +539,41 @@ export interface EdgeDeviceList {
   heartbeat_seconds: number;
   online_window_seconds: number;
 }
+
+// ── Store setup checklist ────────────────────────────────────────
+
+export interface SetupStep {
+  key: "store" | "cameras" | "box" | "zones" | "data" | "pos";
+  title: string;
+  detail: string;
+  done: boolean;
+  /** Optional steps do not hold back "Ready". */
+  required: boolean;
+}
+
+export interface SetupCamera {
+  camera_id: string;
+  camera_code: string;
+  name: string;
+  camera_type: CameraType;
+  has_entry_line: boolean;
+  zones: number;
+  has_still_image: boolean;
+  /** Reported live by a box that is online right now. */
+  live: boolean;
+  /** What is still missing before this camera produces numbers, e.g. "entry line". */
+  needs: string[];
+}
+
+export interface SetupStatus {
+  store_id: string;
+  ready: boolean;
+  done: number;
+  total: number;
+  steps: SetupStep[];
+  cameras: SetupCamera[];
+  has_entrance_camera: boolean;
+  /** Boxes added for this store, paired or not. */
+  boxes: number;
+  box_online: boolean;
+}

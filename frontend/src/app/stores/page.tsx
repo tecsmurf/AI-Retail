@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDashboard } from "@/components/dashboard";
 import { FilterBar } from "@/components/filters";
+import { useSession } from "@/components/session";
 import { Badge, Card, CardTitle, Empty, ErrorState, Loading, Note, PageHeader, Stat, inputClass } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
@@ -12,7 +14,7 @@ import type { OrgOverview, OrgRollup, OrgStoreRow, Region } from "@/lib/types";
 import { cn, fmtCurrency, fmtDuration, fmtInt, fmtPercent } from "@/lib/utils";
 
 const FLAG_LABELS: Record<OrgStoreRow["flags"][number], { text: string; tone: "warn" | "bad" | "neutral" }> = {
-  no_data: { text: "No processed data", tone: "neutral" },
+  no_data: { text: "No camera data", tone: "neutral" },
   no_entrance_data: { text: "No entrance camera data", tone: "warn" },
   no_pos_mapping: { text: "POS not mapped", tone: "neutral" },
   open_anomalies: { text: "Open anomalies", tone: "bad" },
@@ -36,6 +38,7 @@ function sortRows(rows: OrgStoreRow[], key: SortKey): OrgStoreRow[] {
 export default function StoresPage() {
   const d = useDashboard();
   const router = useRouter();
+  const { isAdmin } = useSession();
   const [regionId, setRegionId] = useState("");
   const [sort, setSort] = useState<SortKey>("entries");
   const regions = useResource("org-regions", (signal) => api<{ items: Region[] }>("/api/org/regions", { signal }));
@@ -52,7 +55,8 @@ export default function StoresPage() {
 
   return (
     <>
-      <PageHeader title="All stores" subtitle="Every store you can see, side by side for the same dates" />
+      <PageHeader title="All stores" subtitle="Every store you can see, side by side for the same dates"
+        action={isAdmin ? <Link href="/onboarding" className="text-sm text-purple-300">Set up a store</Link> : undefined} />
       <FilterBar showStore={false} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {regions.data && regions.data.items.length > 0 && (
