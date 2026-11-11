@@ -3,6 +3,8 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/components/session";
+import Link from "next/link";
+import { LogoMark } from "@/components/brand";
 import { Button, ErrorState, Field, inputClass } from "@/components/ui";
 
 function LoginForm() {
@@ -21,7 +23,7 @@ function LoginForm() {
     try {
       await login(email, password);
       const next = params.get("next");
-      router.replace(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
+      router.replace(next && next.startsWith("/") && !next.startsWith("//") ? next : "/overview");
     } catch (err) {
       setError(err);
     } finally {
@@ -32,8 +34,8 @@ function LoginForm() {
   return (
     <form onSubmit={submit} className="card w-full max-w-sm space-y-4 p-6">
       <div>
-        <div className="grid h-10 w-10 place-items-center rounded-xl bg-purple-600 font-bold text-white">P</div>
-        <h1 className="mt-4 text-xl font-semibold">Sign in to PurpleSol</h1>
+        <LogoMark className="h-10 w-10" />
+        <h1 className="mt-4 text-xl font-semibold">Sign in to Footrail</h1>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">Accounts are created by an administrator.</p>
       </div>
       <Field label="Email">
@@ -54,10 +56,13 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="grid min-h-dvh place-items-center px-4">
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-4">
       <Suspense>
         <LoginForm />
       </Suspense>
+      <Link href="/" className="text-sm text-[var(--text-secondary)] hover:text-white">
+        What is Footrail? See how it works
+      </Link>
     </div>
   );
 }

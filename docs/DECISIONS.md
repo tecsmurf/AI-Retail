@@ -146,3 +146,23 @@ Format: decision, why, what it costs, how to undo.
   public clips at about twice the CPU cost.
 * The evaluator gained `--drop-rate`/`--seed` so a change can be checked against
   missed detections without new footage.
+
+## D18. Public product page at `/`, dashboard at `/overview`
+
+* The site used to send every visitor straight to sign-in, so a buyer opening
+  the link learned nothing about the product. `/` is now a public page that
+  explains the problem, the questions Footrail answers, how it works, privacy,
+  measured results with their limits, and the pilot offer. The dashboard
+  overview moved to `/overview`; signing in lands there.
+* The page states only what the code and docs/CV_VALIDATION.md support: no
+  customer logos, no ROI claims, no invented uplift. The store-floor animation
+  and demo video are marked as illustration and sample footage.
+* The "Request a pilot" email button appears only when
+  `NEXT_PUBLIC_CONTACT_EMAIL` is set at build time, so no address is hardcoded.
+* User-visible brand on the touched pages is Footrail (new trail logo mark).
+  Technical ids (env vars, headers, storage keys) are unchanged.
+* The page is light-themed on purpose: the dark app stays as it is, and the
+  product page reads like a document a retail operations team can forward.
+* The Overview gained a "What this means" card that restates the tiles in plain
+  words. It only shows sentences for figures that exist, and hides the 1-in-10
+  queue line below 10 queue visits.

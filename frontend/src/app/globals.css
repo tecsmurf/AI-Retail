@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* ── PurpleSol Design System ─────────────────────────────────── */
+/* ── Footrail design system (app) ─────────────────────────────────── */
 
 :root {
   /* Brand Colors */
@@ -171,3 +171,78 @@ body {
 
 input[type="date"] { color-scheme: dark; }
 select { color-scheme: dark; }
+
+/* ── Public product page (light, editorial) ─────────────────── */
+/* In the components layer so Tailwind utilities can override it. */
+@layer components {
+.lp {
+  --lp-bg: #f7f5f0;
+  --lp-card: #fffdf9;
+  --lp-ink: #16131f;
+  --lp-ink-2: #4b4659;
+  --lp-muted: #7b768a;
+  --lp-line: #e6e1d6;
+  --lp-line-strong: #d9d3c6;
+  --lp-violet: #5b3df5;
+  --lp-violet-soft: #eeeaff;
+  --lp-mint-ink: #0f8a64;
+  --lp-dark: #15121f;
+  min-height: 100dvh;
+  background: var(--lp-bg);
+  color: var(--lp-ink);
+  color-scheme: light;
+  overflow-x: clip;
+}
+.lp-wrap { width: 100%; max-width: 76rem; margin-inline: auto; padding-inline: 1rem; }
+@media (min-width: 640px) { .lp-wrap { padding-inline: 1.5rem; } }
+.lp-nav {
+  position: sticky; top: 0; z-index: 40;
+  background: color-mix(in srgb, var(--lp-bg) 85%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--lp-line);
+}
+.lp-eyebrow {
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--lp-violet);
+}
+.lp-h1 {
+  font-size: clamp(2.25rem, 5.2vw, 3.6rem); line-height: 1.04; font-weight: 650;
+  letter-spacing: -0.035em; text-wrap: balance;
+}
+.lp-h2 {
+  font-size: clamp(1.75rem, 3.4vw, 2.5rem); line-height: 1.1; font-weight: 650;
+  letter-spacing: -0.03em; text-wrap: balance;
+}
+.lp-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  min-height: 2.5rem; padding: 0 1rem; border-radius: 999px;
+  font-size: 0.875rem; font-weight: 600; transition: background-color .15s, border-color .15s, color .15s;
+}
+.lp-btn-lg { min-height: 3rem; padding: 0 1.4rem; font-size: 0.95rem; }
+.lp-btn-primary { background: var(--lp-violet); color: #fff; }
+.lp-btn-primary:hover { background: #4a2de0; }
+.lp-btn-dark { background: var(--lp-ink); color: #fff; }
+.lp-btn-dark:hover { background: #2b2638; }
+.lp-btn-ghost { border: 1px solid var(--lp-line-strong); color: var(--lp-ink); }
+.lp-btn-ghost:hover { border-color: var(--lp-ink); }
+.lp-btn:focus-visible, .lp a:focus-visible { outline: 2px solid var(--lp-violet); outline-offset: 3px; }
+.lp-panel {
+  overflow: hidden; border-radius: 1.5rem; background: var(--lp-dark);
+  box-shadow: 0 30px 80px -30px rgba(40, 20, 120, 0.45), 0 0 0 1px rgba(255,255,255,0.04) inset;
+}
+.lp-card {
+  border-radius: 1.25rem; border: 1px solid var(--lp-line); background: var(--lp-card); padding: 1.5rem;
+}
+.lp-list { display: grid; gap: 0.6rem; font-size: 0.95rem; }
+.lp-list li { display: flex; gap: 0.6rem; align-items: baseline; color: var(--lp-ink-2); }
+.lp-list li::before {
+  content: ""; flex: none; width: 0.45rem; height: 0.45rem; border-radius: 999px;
+  background: var(--lp-line-strong); transform: translateY(-0.1rem);
+}
+.lp-list-on li { color: var(--lp-ink); font-weight: 500; }
+.lp-list-on li::before { background: var(--lp-violet); }
+.lp-list-light li { color: rgba(255,255,255,0.9); }
+.lp-list-light li::before { background: #5ef0b4; }
+html:has(.lp) { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html:has(.lp) { scroll-behavior: auto; } }
+}

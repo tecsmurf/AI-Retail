@@ -46,15 +46,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setUnauthorizedHandler(() => {
       setUser(null);
-      if (!window.location.pathname.startsWith("/login")) {
-        router.replace(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+      const path = window.location.pathname;
+      if (path !== "/" && !path.startsWith("/login")) {
+        router.replace(`/login?next=${encodeURIComponent(path)}`);
       }
     });
     return () => setUnauthorizedHandler(null);
   }, [router]);
 
   useEffect(() => {
-    if (checked && !user && !pathname.startsWith("/login")) {
+    if (checked && !user && pathname !== "/" && !pathname.startsWith("/login")) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     }
   }, [checked, user, pathname, router]);

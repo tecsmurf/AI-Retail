@@ -7,8 +7,9 @@ import "./globals.css";
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
-  title: "PurpleSol",
-  description: "Anonymous retail analytics from existing CCTV: footfall, zones, dwell, queues and journeys.",
+  title: { default: "Footrail: store analytics from the CCTV you already have", template: "%s · Footrail" },
+  description:
+    "Footrail turns existing store CCTV into anonymous footfall, conversion, zone dwell and billing-queue analytics. No facial recognition, no new cameras.",
   robots: { index: false, follow: false },
 };
 
