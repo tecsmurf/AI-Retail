@@ -8,8 +8,9 @@ import { SOURCE_LABELS, addDays, cn, fmtDay, todayIn } from "@/lib/utils";
 import { useDashboard } from "./dashboard";
 import { Badge, Button, inputClass } from "./ui";
 
-/** Store, date range and data-source controls shared by every analytics page. */
-export function FilterBar() {
+/** Store, date range and data-source controls shared by every analytics page.
+ *  `showStore={false}` hides the store picker on pages that cover every store. */
+export function FilterBar({ showStore = true }: { showStore?: boolean }) {
   const d = useDashboard();
   const [open, setOpen] = useState(false);
   const [jumping, setJumping] = useState(false);
@@ -49,15 +50,17 @@ export function FilterBar() {
   return (
     <div className="mb-5 space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <label className="relative flex min-w-0 basis-full items-center sm:basis-auto">
-          <StoreIcon className="pointer-events-none absolute left-3 h-4 w-4 text-[var(--text-muted)]" />
-          <select aria-label="Store" value={d.store?.id ?? ""} onChange={(e) => d.setStore(e.target.value)}
-            className={cn(inputClass, "pl-9 sm:w-64")}>
-            {d.stores.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        </label>
+        {showStore && (
+          <label className="relative flex min-w-0 basis-full items-center sm:basis-auto">
+            <StoreIcon className="pointer-events-none absolute left-3 h-4 w-4 text-[var(--text-muted)]" />
+            <select aria-label="Store" value={d.store?.id ?? ""} onChange={(e) => d.setStore(e.target.value)}
+              className={cn(inputClass, "pl-9 sm:w-64")}>
+              {d.stores.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <Button onClick={() => setOpen((o) => !o)} aria-expanded={open}>
           <CalendarRange className="h-4 w-4" />
           {d.start === d.end ? fmtDay(d.start) : `${fmtDay(d.start)} – ${fmtDay(d.end)}`}
@@ -67,9 +70,11 @@ export function FilterBar() {
           <Database className="h-4 w-4" />
           {d.data === "real" ? "Real data" : "All data"}
         </Button>
-        <Button variant="ghost" onClick={() => void jumpToLatest()} disabled={jumping}>
-          {jumping ? "Looking…" : "Jump to latest data"}
-        </Button>
+        {showStore && (
+          <Button variant="ghost" onClick={() => void jumpToLatest()} disabled={jumping}>
+            {jumping ? "Looking…" : "Jump to latest data"}
+          </Button>
+        )}
       </div>
       {open && (
         <div className="card flex flex-wrap items-end gap-2 p-3">
@@ -83,7 +88,9 @@ export function FilterBar() {
             onChange={(e) => e.target.value && d.setRange(e.target.value, d.end)} className={cn(inputClass, "w-auto")} />
           <input type="date" aria-label="End date" value={d.end} min={d.start}
             onChange={(e) => e.target.value && d.setRange(d.start, e.target.value)} className={cn(inputClass, "w-auto")} />
-          <span className="text-xs text-[var(--text-muted)]">Dates are in store time ({tz}).</span>
+          <span className="text-xs text-[var(--text-muted)]">
+            {showStore ? `Dates are in store time (${tz}).` : "Dates are in each store's own time."}
+          </span>
         </div>
       )}
       {d.data === "all" && (

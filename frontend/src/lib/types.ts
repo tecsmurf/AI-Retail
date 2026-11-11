@@ -1,14 +1,111 @@
 /** Response shapes of the PurpleSol API (see backend/app/api). */
 
-export type Role = "admin" | "viewer";
+export type Role = "admin" | "viewer" | "regional_manager" | "store_manager";
 
+export const ROLE_LABELS: Record<Role, string> = {
+  admin: "HQ admin",
+  viewer: "HQ viewer",
+  regional_manager: "Regional manager",
+  store_manager: "Store manager",
+};
+
+export const ROLE_HELP: Record<Role, string> = {
+  admin: "Everything: all stores, setup, team and uploads.",
+  viewer: "Sees all stores. Cannot change anything.",
+  regional_manager: "Sees the stores of their regions. Can upload recordings.",
+  store_manager: "Sees only their stores. Can upload recordings.",
+};
+
+/** A team member as listed on the Team page. */
 export interface User {
   id: string;
   email: string;
+  full_name: string | null;
   role: Role;
   is_active: boolean;
   created_at: string;
   last_login_at: string | null;
+  /** Explicit grants; empty for the two HQ roles. */
+  store_ids: string[];
+  region_ids: string[];
+}
+
+/** The signed-in user with their organisation and permissions. */
+export interface Me extends User {
+  org_id: string;
+  org_name: string;
+  all_stores: boolean;
+  can_upload: boolean;
+  is_admin: boolean;
+}
+
+export interface Region {
+  id: string;
+  name: string;
+  store_count: number;
+}
+
+export type StoreFlag = "no_data" | "no_entrance_data" | "no_pos_mapping" | "open_anomalies";
+
+export interface OrgStoreRow {
+  store_id: string;
+  store_code: string;
+  name: string;
+  city: string | null;
+  region_id: string | null;
+  region: string | null;
+  timezone: string;
+  entries: number;
+  exits: number;
+  avg_daily_entries: number;
+  peak_hour: string | null;
+  zone_visits: number;
+  avg_zone_dwell_seconds: number | null;
+  queue_visits: number;
+  avg_queue_wait_seconds: number | null;
+  median_queue_wait_seconds: number | null;
+  abandonment_rate: number | null;
+  transactions: number | null;
+  revenue: number | null;
+  avg_order_value: number | null;
+  conversion_rate: number | null;
+  processed_video_hours: number;
+  live_hours: number;
+  open_anomalies: number;
+  flags: StoreFlag[];
+}
+
+export interface OrgRollup {
+  name: string;
+  stores: number;
+  stores_with_data: number;
+  entries: number;
+  transactions: number | null;
+  revenue: number | null;
+  conversion_rate: number | null;
+  conversion_stores: number;
+  queue_visits: number;
+  avg_queue_wait_seconds: number | null;
+}
+
+export interface OrgOverview {
+  range: { start: string; end: string; days: number };
+  data: string[];
+  stores: OrgStoreRow[];
+  total: OrgRollup;
+  regions: OrgRollup[];
+  notes: string[];
+}
+
+export interface AuditEntry {
+  id: string;
+  created_at: string;
+  actor: string;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  details: Record<string, unknown> | null;
+  ip: string | null;
 }
 
 export interface Store {
@@ -19,6 +116,7 @@ export interface Store {
   city: string | null;
   timezone: string;
   pos_store_code: string | null;
+  region_id: string | null;
   is_active: boolean;
   camera_count: number;
   zone_count: number;
@@ -371,6 +469,7 @@ export interface SystemStatus {
     online: boolean;
     last_seen_at: string;
     last_seen_seconds_ago: number;
+    busy: boolean;
     current_job_id: string | null;
     model_loaded: boolean;
     model_error: string | null;

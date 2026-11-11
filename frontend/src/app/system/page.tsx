@@ -3,8 +3,10 @@
 import { Badge, Card, CardTitle, Empty, ErrorState, Loading, Note, PageHeader, Stat } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useInterval, useResource } from "@/lib/hooks";
-import type { Readiness, SystemStatus } from "@/lib/types";
-import { fmtDuration, relativeTime } from "@/lib/utils";
+import { useSession } from "@/components/session";
+import type { AuditEntry, Readiness, SystemStatus } from "@/lib/types";
+import { fmtDateTime, fmtDuration, relativeTime } from "@/lib/utils";
+import { useState } from "react";
 
 export default function SystemPage() {
   const status = useResource("system-status", (signal) => api<SystemStatus>("/api/system/status", { signal }));
@@ -12,6 +14,7 @@ export default function SystemPage() {
     fetch("/health/ready", { signal, cache: "no-store" }).then(async (r) => (await r.json()) as Readiness));
   useInterval(() => { status.reload(); ready.reload(); }, 15000);
   const s = status.data;
+  const { isAdmin } = useSession();
 
   return (
     <>
@@ -56,7 +59,7 @@ export default function SystemPage() {
                       <Badge tone={w.online ? "good" : "neutral"}>{w.online ? "online" : "offline"}</Badge>
                       <span className="font-mono text-xs">{w.worker_id}</span>
                       <span className="text-xs text-[var(--text-muted)]">seen {relativeTime(w.last_seen_at)} · {w.device ?? "?"} · model {w.model_loaded ? "loaded" : "not loaded"}</span>
-                      {w.current_job_id && w.online && <Badge tone="info">working</Badge>}
+                      {w.busy && w.online && <Badge tone="info">working</Badge>}
                       {w.model_error && <span className="w-full text-xs text-rose-300">{w.model_error}</span>}
                     </li>
                   ))}
@@ -76,7 +79,65 @@ export default function SystemPage() {
             </Card>
           </>
         )}
+        {isAdmin && <AuditCard />}
       </div>
     </>
+  );
+}
+
+const AUDIT_FILTERS: [string, string][] = [
+  ["", "Everything"],
+  ["auth.", "Sign-ins and passwords"],
+  ["user.", "Team changes"],
+  ["store.", "Stores"],
+  ["camera.", "Cameras and zones"],
+  ["region.", "Regions"],
+  ["video.", "Uploads"],
+  ["job.", "Processing"],
+  ["pos.", "POS imports"],
+];
+
+function describe(e: AuditEntry): string {
+  const d = e.details ?? {};
+  const parts = Object.entries(d)
+    .filter(([, v]) => v !== null && v !== "" && typeof v !== "object")
+    .map(([k, v]) => `${k.replace(/_/g, " ")}: ${String(v)}`);
+  return parts.join(" · ");
+}
+
+/** Who changed what in this organisation (administrators only). */
+function AuditCard() {
+  const [action, setAction] = useState("");
+  const log = useResource(`audit:${action}`, (signal) =>
+    api<{ total: number; items: AuditEntry[] }>("/api/org/audit", { signal, query: { action, limit: 50 } }));
+  return (
+    <Card>
+      <CardTitle title="Activity log" hint="Sign-ins, setup and team changes, uploads. Newest first."
+        action={
+          <select aria-label="Filter activity" value={action} onChange={(e) => setAction(e.target.value)}
+            className="min-h-10 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] px-2 text-sm">
+            {AUDIT_FILTERS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+          </select>
+        } />
+      {log.error && <ErrorState error={log.error} onRetry={log.reload} />}
+      {log.loading && !log.data && <Loading />}
+      {log.data && (log.data.items.length === 0 ? <Empty title="Nothing recorded yet" /> : (
+        <ul className="divide-y divide-[var(--border-color)] text-sm">
+          {log.data.items.map((e) => (
+            <li key={e.id} className="py-2">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <span className="font-mono text-xs text-purple-200">{e.action}</span>
+                <span className="text-[var(--text-secondary)]">{e.actor}</span>
+                <span className="ml-auto text-xs text-[var(--text-muted)]">{fmtDateTime(e.created_at)}</span>
+              </div>
+              {describe(e) && <div className="mt-0.5 break-words text-xs text-[var(--text-muted)]">{describe(e)}</div>}
+            </li>
+          ))}
+        </ul>
+      ))}
+      {log.data && log.data.total > log.data.items.length && (
+        <p className="mt-2 text-xs text-[var(--text-muted)]">Showing the latest {log.data.items.length} of {log.data.total}.</p>
+      )}
+    </Card>
   );
 }
