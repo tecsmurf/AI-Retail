@@ -103,6 +103,27 @@ def clip_and_validate(
     return dets
 
 
+def disable_ultralytics_telemetry() -> None:
+    """Stop Ultralytics from sending usage analytics (it posts to Google
+    Analytics by default). Footrail promises stores that nothing leaves the
+    worker except what the API needs, so the worker must never phone home."""
+    try:
+        from ultralytics import settings as yolo_settings
+
+        if yolo_settings.get("sync", False):
+            yolo_settings.update({"sync": False})
+    except Exception:  # noqa: BLE001  (settings file may be read-only; the switch below still applies)
+        pass
+    try:
+        # The events sender decides once, at import, whether it is enabled,
+        # so a fresh container with default settings must be switched off too.
+        from ultralytics.hub import utils as hub_utils
+
+        hub_utils.events.enabled = False
+    except Exception:  # noqa: BLE001  (layout differs in other Ultralytics versions)
+        pass
+
+
 class PersonDetector:
     def __init__(
         self,
@@ -130,6 +151,7 @@ class PersonDetector:
                 return
             path = resolve_model_path(self.model_name)
             try:
+                disable_ultralytics_telemetry()
                 from ultralytics import YOLO
 
                 model = YOLO(path)
