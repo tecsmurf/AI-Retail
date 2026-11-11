@@ -4,14 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  Activity, BarChart3, Building2, Clapperboard, FileText, LayoutDashboard, Lightbulb, LogOut, Menu, Rocket, Route, Settings2, Users, X,
+  Activity, BarChart3, Building2, Clapperboard, FileText, LayoutDashboard, Lightbulb, LogOut, Menu, Rocket, Route, Settings2, UserCircle, Users, X,
   type LucideIcon,
 } from "lucide-react";
 import { OVERVIEW_PATH } from "@/lib/routes";
 import { ROLE_LABELS, type Me } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DashboardProvider } from "./dashboard";
-import { useSession } from "./session";
+import { isPublicPath, useSession } from "./session";
 import { Loading } from "./ui";
 
 interface NavItem {
@@ -39,6 +39,7 @@ const NAV: NavItem[] = [
   { href: "/setup", label: "Cameras & zones", icon: Settings2, mobile: false },
   { href: "/team", label: "Team", icon: Users, mobile: false, show: adminOnly },
   { href: "/system", label: "System", icon: Activity, mobile: false },
+  { href: "/account", label: "Account", icon: UserCircle, mobile: false },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -59,7 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, checked, logout } = useSession();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  if (pathname.startsWith("/login")) return <>{children}</>;
+  if (isPublicPath(pathname)) return <>{children}</>;
   if (!checked || !user) {
     return (
       <div className="grid min-h-dvh place-items-center">

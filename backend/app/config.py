@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     admin_email: Optional[str] = Field(default=None, alias="ADMIN_EMAIL")
     admin_password: Optional[str] = Field(default=None, alias="ADMIN_PASSWORD")
     login_rate_limit_per_minute: int = Field(default=10, alias="LOGIN_RATE_LIMIT_PER_MINUTE")
+    # Lets new customers create their own company account from the sign-in page.
+    signup_enabled: bool = Field(default=True, alias="SIGNUP_ENABLED")
+    signup_rate_limit_per_hour: int = Field(default=5, alias="SIGNUP_RATE_LIMIT_PER_HOUR")
     upload_rate_limit_per_hour: int = Field(default=60, alias="UPLOAD_RATE_LIMIT_PER_HOUR")
 
     @property

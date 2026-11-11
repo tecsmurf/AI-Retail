@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useDashboard } from "@/components/dashboard";
+import { useSession } from "@/components/session";
 import { FilterBar, SourceLine } from "@/components/filters";
 import { Bars, RankBars } from "@/components/charts";
 import { Card, CardTitle, Empty, ErrorState, Loading, Note, PageHeader, Stat } from "@/components/ui";
@@ -12,6 +13,7 @@ import { fmtCurrency, fmtDuration, fmtInt, fmtPercent, isRealSource } from "@/li
 
 export default function OverviewPage() {
   const d = useDashboard();
+  const { isAdmin } = useSession();
   const key = d.store ? `overview:${d.store.id}:${d.start}:${d.end}:${d.data}` : null;
   const res = useResource(key, (signal) => api<Overview>(`/api/analytics/${d.store!.id}/overview`, { query: d.query, signal }));
 
@@ -20,7 +22,13 @@ export default function OverviewPage() {
     return (
       <>
         <PageHeader title="Overview" />
-        <Empty title="No stores yet">An administrator can add a store and its cameras under <Link className="text-purple-300 underline" href="/setup">Cameras &amp; zones</Link>.</Empty>
+        {isAdmin ? (
+          <Empty title="Welcome to PurpleSol">
+            Start by adding your first store and its cameras: <Link className="text-purple-300 underline" href="/onboarding">Set up a store</Link>.
+          </Empty>
+        ) : (
+          <Empty title="No stores yet">Your company&apos;s admin has not given you access to a store yet.</Empty>
+        )}
       </>
     );
   }

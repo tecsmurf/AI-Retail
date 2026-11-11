@@ -204,3 +204,15 @@ Numbering starts at D19 because D18 is used by the website redesign.
   what the code does and list the open legal questions (lawful basis for
   shoppers, children, staff, hosting location). **They are not legal advice.**
 * **Not built:** one-step deletion of an organisation, backups, SSO, 2FA.
+
+## D22. Self-service sign-up
+
+* `POST /api/auth/signup` creates a new organisation and its first admin and
+  signs them in. The new company starts empty and cannot see any other
+  company. Sign-up is limited per IP address and can be turned off with
+  `SIGNUP_ENABLED=false`.
+* **Cost:** there is no email verification and no password reset by email,
+  because no email service is connected. A forgotten password is reset by the
+  company's admin on the Team page, or by the operator with the CLI. Open
+  sign-up also lets strangers use storage and worker time; the operator
+  decides whether to leave it on.

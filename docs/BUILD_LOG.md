@@ -100,3 +100,10 @@ Continues `15_BUILD_LOG.md`, which covers the v1 demo build.
 * `docs/privacy/`: data map, entrance sign (English and Hindi), privacy
   notice, processing agreement template and security answers. Drafts for a
   lawyer, checked line by line against the code.
+
+### Sign-up and account page
+* Sign-up page (new company and its admin), Account page (name, company name,
+  password, sign out everywhere), a welcome state for a company with no
+  stores. 4 tests, including that a new company sees nothing of another.
+* Walked through in a phone-sized browser: sign up, land on "Set up a store",
+  create the first store, open the account page.

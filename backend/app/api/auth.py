@@ -10,8 +10,8 @@ from app.access import load_scope
 from app.config import settings
 from app.database import get_db, utcnow
 from app.models.org import Organization, UserRegionAccess, UserStoreAccess
-from app.models.user import User
-from app.schemas.auth import LoginRequest, MeResponse, PasswordChange
+from app.models.user import ROLE_ADMIN, User
+from app.schemas.auth import AuthOptions, LoginRequest, MeResponse, PasswordChange, ProfileUpdate, SignupRequest
 from app.security import (
     SESSION_COOKIE,
     client_ip,
@@ -22,6 +22,7 @@ from app.security import (
     verify_password,
 )
 from app.services import audit
+from app.services.orgs import unique_slug
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
@@ -82,6 +83,45 @@ async def login(body: LoginRequest, request: Request, response: Response, db: As
     user.last_login_at = utcnow()
     audit.record(db, "auth.login", user=user, request=request)
     _set_cookie(response, issue_token(user))
+    return await me_response(db, user)
+
+
+@router.get("/options", response_model=AuthOptions)
+async def options():
+    """What the sign-in page may offer (no secrets)."""
+    return AuthOptions(signup_enabled=settings.signup_enabled)
+
+
+@router.post("/signup", response_model=MeResponse, status_code=201)
+async def signup(body: SignupRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    """Create a new company account and sign its first admin in.
+
+    The company starts empty: it sees none of any other company's stores,
+    users or data (every query is scoped to the user's organisation)."""
+    if not settings.signup_enabled:
+        raise HTTPException(403, "Sign-up is turned off. Ask your administrator for an account.")
+    rate_limiter.check(f"signup:{client_ip(request)}", settings.signup_rate_limit_per_hour, 3600)
+    email = body.email.strip().lower()
+    if (await db.execute(select(User.id).where(func.lower(User.email) == email))).first():
+        raise HTTPException(409, "An account with this email already exists. Sign in instead.")
+    org = Organization(name=body.company_name.strip(), slug=unique_slug(body.company_name))
+    db.add(org)
+    await db.flush()
+    user = User(email=email, full_name=(body.full_name or "").strip() or None, role=ROLE_ADMIN,
+                password_hash=hash_password(body.password), org_id=org.id, last_login_at=utcnow())
+    db.add(user)
+    await db.flush()
+    audit.record(db, "auth.signup", user=user, target_type="org", target_id=org.id,
+                 details={"company": org.name}, request=request)
+    _set_cookie(response, issue_token(user))
+    return await me_response(db, user)
+
+
+@router.patch("/me", response_model=MeResponse)
+async def update_me(body: ProfileUpdate, request: Request, user: User = Depends(current_user),
+                    db: AsyncSession = Depends(get_db)):
+    user.full_name = (body.full_name or "").strip() or None
+    audit.record(db, "auth.profile_update", user=user, target_type="user", target_id=user.id, request=request)
     return await me_response(db, user)
 
 

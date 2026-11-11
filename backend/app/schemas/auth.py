@@ -74,3 +74,20 @@ class OrgUpdate(BaseModel):
 
 class RegionIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
+
+
+class SignupRequest(BaseModel):
+    """A new customer: creates their company (organisation) and its first admin."""
+
+    company_name: str = Field(..., min_length=2, max_length=200)
+    full_name: Optional[str] = Field(None, max_length=200)
+    email: str = Field(..., min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    password: str = Field(..., min_length=10, max_length=256)
+
+
+class ProfileUpdate(BaseModel):
+    full_name: Optional[str] = Field(None, max_length=200)
+
+
+class AuthOptions(BaseModel):
+    signup_enabled: bool
