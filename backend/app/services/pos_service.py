@@ -11,12 +11,14 @@ from __future__ import annotations
 
 import csv
 import io
+import uuid
 from datetime import datetime
 from typing import Dict, List
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.org import DEFAULT_ORG_ID
 from app.models.pos import POSTransaction
 from app.models.store import Store
 from app.services.timerange import store_tz, to_utc_naive
@@ -34,18 +36,24 @@ def _parse_date(value: str):
     raise ValueError(f"unrecognised date '{value}'")
 
 
-async def import_csv(db: AsyncSession, text: str, source: str = "api") -> Dict:
+async def import_csv(db: AsyncSession, text: str, source: str = "api", org_id: uuid.UUID = DEFAULT_ORG_ID) -> Dict:
     reader = csv.DictReader(io.StringIO(text))
     missing = [c for c in REQUIRED if c not in (reader.fieldnames or [])]
     if missing:
         raise ValueError(f"CSV is missing columns: {', '.join(missing)}")
     tz_by_code = {
-        code: tz for code, tz in (await db.execute(select(Store.pos_store_code, Store.timezone))).all() if code
+        code: tz
+        for code, tz in (await db.execute(
+            select(Store.pos_store_code, Store.timezone).where(Store.org_id == org_id)
+        )).all() if code
     }
     existing = {
         (s, o, p)
         for s, o, p in (
-            await db.execute(select(POSTransaction.store_id, POSTransaction.order_id, POSTransaction.product_id))
+            await db.execute(
+                select(POSTransaction.store_id, POSTransaction.order_id, POSTransaction.product_id)
+                .where(POSTransaction.org_id == org_id)
+            )
         ).all()
     }
     inserted = 0
@@ -72,7 +80,7 @@ async def import_csv(db: AsyncSession, text: str, source: str = "api") -> Dict:
         tz = store_tz(tz_by_code.get(code, DEFAULT_TZ))
         db.add(
             POSTransaction(
-                order_id=order_id, store_id=code, order_date=d, order_time=t,
+                org_id=org_id, order_id=order_id, store_id=code, order_date=d, order_time=t,
                 ordered_at_utc=to_utc_naive(datetime.combine(d, t), tz), product_id=product,
                 brand_name=row["brand_name"].strip(), total_amount=amount, source=source,
             )

@@ -90,7 +90,8 @@ async def data_extent(db: AsyncSession, store: Store) -> Dict:
         }
     pos = await db.execute(
         select(func.min(POSTransaction.ordered_at_utc), func.max(POSTransaction.ordered_at_utc), func.count())
-        .where(POSTransaction.store_id == (store.pos_store_code or "__none__"))
+        .where(POSTransaction.org_id == store.org_id,
+               POSTransaction.store_id == (store.pos_store_code or "__none__"))
     )
     first, last, count = pos.one()
     out["pos"] = {
@@ -294,6 +295,7 @@ async def _pos_rows(db: AsyncSession, store: Store, tr: TimeRange) -> List[POSTr
         return []
     rows = await db.execute(
         select(POSTransaction).where(
+            POSTransaction.org_id == store.org_id,
             POSTransaction.store_id == store.pos_store_code,
             POSTransaction.ordered_at_utc >= tr.start_utc,
             POSTransaction.ordered_at_utc < tr.end_utc,
@@ -415,12 +417,13 @@ async def pos_correlation(
     }
 
 
-async def unassigned_pos(db: AsyncSession) -> List[Dict]:
-    """POS store codes present in the data but not mapped to any store."""
-    mapped = {c for (c,) in (await db.execute(select(Store.pos_store_code))).all() if c}
+async def unassigned_pos(db: AsyncSession, org_id: uuid.UUID) -> List[Dict]:
+    """POS store codes present in the organisation's data but not mapped to any of its stores."""
+    mapped = {c for (c,) in (await db.execute(select(Store.pos_store_code).where(Store.org_id == org_id))).all() if c}
     rows = await db.execute(
         select(POSTransaction.store_id, func.count(), func.count(func.distinct(POSTransaction.order_id)),
                func.min(POSTransaction.order_date), func.max(POSTransaction.order_date))
+        .where(POSTransaction.org_id == org_id)
         .group_by(POSTransaction.store_id)
     )
     return [

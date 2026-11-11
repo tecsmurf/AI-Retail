@@ -5,13 +5,15 @@ from __future__ import annotations
 import uuid
 from typing import List
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.access import Scope, get_scope, require_org_admin
 from app.api.deps import get_camera, get_store
 from app.database import get_db, utcnow
+from app.models.org import Region
 from app.models.store import Camera, Store, Zone
 from app.models.user import User
 from app.schemas.store import (
@@ -26,6 +28,7 @@ from app.schemas.store import (
     ZoneResponse,
 )
 from app.security import current_user, require_admin
+from app.services import audit
 from app.storage import StorageError, get_storage
 
 router = APIRouter(tags=["Stores"])
@@ -60,9 +63,18 @@ async def _store_response(db: AsyncSession, store: Store) -> StoreResponse:
     return data
 
 
+async def _check_region(db: AsyncSession, scope: Scope, region_id) -> None:
+    if region_id is None:
+        return
+    region = await db.get(Region, region_id)
+    if not region or region.org_id != scope.org_id:
+        raise HTTPException(422, "Region not found")
+
+
 @router.get("/api/stores", response_model=List[StoreResponse])
-async def list_stores(include_inactive: bool = False, _: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    q = select(Store).order_by(Store.store_code)
+async def list_stores(include_inactive: bool = False, scope: Scope = Depends(get_scope), db: AsyncSession = Depends(get_db)):
+    """Stores the caller may see (their organisation's, limited by role)."""
+    q = scope.filter_stores(select(Store)).order_by(Store.store_code)
     if not include_inactive:
         q = q.where(Store.is_active.is_(True))
     stores = (await db.execute(q)).scalars().all()
@@ -70,12 +82,18 @@ async def list_stores(include_inactive: bool = False, _: User = Depends(current_
 
 
 @router.post("/api/stores", response_model=StoreResponse, status_code=201)
-async def create_store(body: StoreCreate, _: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
-    if (await db.execute(select(Store).where(Store.store_code == body.store_code))).scalar_one_or_none():
+async def create_store(body: StoreCreate, request: Request, scope: Scope = Depends(require_org_admin),
+                       db: AsyncSession = Depends(get_db)):
+    if (await db.execute(
+        select(Store).where(Store.org_id == scope.org_id, Store.store_code == body.store_code)
+    )).scalar_one_or_none():
         raise HTTPException(409, "store_code already exists")
-    store = Store(**body.model_dump(), is_active=True)
+    await _check_region(db, scope, body.region_id)
+    store = Store(**body.model_dump(), org_id=scope.org_id, is_active=True)
     db.add(store)
     await db.flush()
+    audit.record(db, "store.create", user=scope.user, target_type="store", target_id=store.id,
+                 details={"store_code": store.store_code, "name": store.name}, request=request)
     return await _store_response(db, store)
 
 
@@ -85,12 +103,18 @@ async def get_store_detail(store: Store = Depends(get_store), _: User = Depends(
 
 
 @router.patch("/api/stores/{store_id}", response_model=StoreResponse)
-async def update_store(body: StoreUpdate, store: Store = Depends(get_store), _: User = Depends(require_admin),
-                       db: AsyncSession = Depends(get_db)):
-    for k, v in body.model_dump(exclude_unset=True).items():
+async def update_store(body: StoreUpdate, request: Request, store: Store = Depends(get_store),
+                       scope: Scope = Depends(require_org_admin), db: AsyncSession = Depends(get_db)):
+    changes = body.model_dump(exclude_unset=True)
+    await _check_region(db, scope, changes.get("region_id"))
+    for k, v in changes.items():
         setattr(store, k, v)
     store.updated_at = utcnow()
     await db.flush()
+    audit.record(db, "store.update", user=scope.user, target_type="store", target_id=store.id,
+                 details={"store_code": store.store_code,
+                          "changes": {k: (str(v) if isinstance(v, uuid.UUID) else v) for k, v in changes.items()}},
+                 request=request)
     return await _store_response(db, store)
 
 
@@ -101,8 +125,8 @@ async def list_cameras(store: Store = Depends(get_store), _: User = Depends(curr
 
 
 @router.post("/api/stores/{store_id}/cameras", response_model=CameraResponse, status_code=201)
-async def create_camera(body: CameraCreate, store: Store = Depends(get_store), _: User = Depends(require_admin),
-                        db: AsyncSession = Depends(get_db)):
+async def create_camera(body: CameraCreate, request: Request, store: Store = Depends(get_store),
+                        admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     dup = (await db.execute(
         select(Camera).where(Camera.store_id == store.id, Camera.camera_code == body.camera_code)
     )).scalar_one_or_none()
@@ -111,13 +135,19 @@ async def create_camera(body: CameraCreate, store: Store = Depends(get_store), _
     cam = Camera(store_id=store.id, is_active=True, config_version=1, **body.model_dump())
     db.add(cam)
     await db.flush()
+    audit.record(db, "camera.create", user=admin, target_type="camera", target_id=cam.id,
+                 details={"store_code": store.store_code, "camera_code": cam.camera_code}, request=request)
     return camera_response(cam)
 
 
 @router.patch("/api/cameras/{camera_id}", response_model=CameraResponse)
-async def update_camera(body: CameraUpdate, camera: Camera = Depends(get_camera), _: User = Depends(require_admin)):
-    for k, v in body.model_dump(exclude_unset=True).items():
+async def update_camera(body: CameraUpdate, request: Request, camera: Camera = Depends(get_camera),
+                        admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    changes = body.model_dump(exclude_unset=True)
+    for k, v in changes.items():
         setattr(camera, k, v)
+    audit.record(db, "camera.update", user=admin, target_type="camera", target_id=camera.id,
+                 details={"camera_code": camera.camera_code, "changes": changes}, request=request)
     return camera_response(camera)
 
 
@@ -134,8 +164,8 @@ async def get_camera_config(camera: Camera = Depends(get_camera), _: User = Depe
 
 
 @router.put("/api/cameras/{camera_id}/config", response_model=CameraConfigResponse)
-async def put_camera_config(body: CameraConfigIn, camera: Camera = Depends(get_camera), _: User = Depends(require_admin),
-                            db: AsyncSession = Depends(get_db)):
+async def put_camera_config(body: CameraConfigIn, request: Request, camera: Camera = Depends(get_camera),
+                            admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     """Replace this camera's zones and entry line. Polygons are validated
     (>= 3 points, inside [0,1], non-zero area, not self-intersecting). The
     camera's config_version is incremented; jobs record the version they used.
@@ -173,6 +203,10 @@ async def put_camera_config(body: CameraConfigIn, camera: Camera = Depends(get_c
     camera.entry_line = body.entry_line.model_dump() if body.entry_line else None
     camera.config_version = (camera.config_version or 1) + 1
     await db.flush()
+    audit.record(db, "camera.config", user=admin, target_type="camera", target_id=camera.id,
+                 details={"camera_code": camera.camera_code, "zones": len(body.zones),
+                          "entry_line": body.entry_line is not None, "config_version": camera.config_version},
+                 request=request)
     zones = (await db.execute(select(Zone).where(Zone.camera_id == camera.id).order_by(Zone.display_order))).scalars().all()
     return CameraConfigResponse(camera=camera_response(camera), zones=[zone_response(z) for z in zones])
 
@@ -190,8 +224,11 @@ async def get_reference_frame(camera: Camera = Depends(get_camera), _: User = De
 
 @router.post("/api/cameras/{camera_id}/reference-frame", response_model=CameraResponse)
 async def upload_reference_frame(
-    file: UploadFile = File(...), camera: Camera = Depends(get_camera), _: User = Depends(require_admin)
+    request: Request, file: UploadFile = File(...), camera: Camera = Depends(get_camera),
+    admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db),
 ):
+    audit.record(db, "camera.reference_frame", user=admin, target_type="camera", target_id=camera.id,
+                 details={"camera_code": camera.camera_code}, request=request)
     data = await file.read(MAX_FRAME_BYTES + 1)
     if len(data) > MAX_FRAME_BYTES:
         raise HTTPException(413, "Image too large (max 10 MB)")

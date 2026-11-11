@@ -30,10 +30,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
+from app.models.org import DEFAULT_ORG_ID, Organization
 from app.models.user import ROLE_ADMIN, User
 
 SESSION_COOKIE = "purplesol_session"
 CSRF_HEADER = "x-purplesol-csrf"
+ORG_HEADER = "x-purplesol-org"
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 # ── Password hashing (stdlib scrypt) ─────────────────────────────
@@ -149,11 +151,26 @@ async def require_admin(user: User = Depends(current_user)) -> User:
     return user
 
 
-async def ingest_principal(request: Request, db: AsyncSession = Depends(get_db)) -> str:
-    """Event ingestion: an admin session or the INGEST_API_KEY header."""
+@dataclass
+class IngestPrincipal:
+    name: str
+    org_id: uuid.UUID
+
+
+async def ingest_principal(request: Request, db: AsyncSession = Depends(get_db)) -> IngestPrincipal:
+    """Event ingestion: an admin session (events go to the admin's
+    organisation) or the INGEST_API_KEY header. The key is a deployment-level
+    secret; ``X-PurpleSol-Org: <organisation slug>`` selects the organisation,
+    which defaults to the default organisation."""
     key = request.headers.get("x-api-key")
     if key and settings.ingest_api_key and hmac.compare_digest(key, settings.ingest_api_key):
-        return "api-key"
+        slug = (request.headers.get(ORG_HEADER) or "").strip().lower()
+        if not slug:
+            return IngestPrincipal("api-key", DEFAULT_ORG_ID)
+        org_id = (await db.execute(select(Organization.id).where(Organization.slug == slug))).scalar_one_or_none()
+        if org_id is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown organisation")
+        return IngestPrincipal("api-key", org_id)
     ctx = await _resolve_user(request, db)
     if ctx is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
@@ -161,7 +178,7 @@ async def ingest_principal(request: Request, db: AsyncSession = Depends(get_db))
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Missing CSRF header")
     if ctx.user.role != ROLE_ADMIN:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Administrator role required")
-    return f"user:{ctx.user.id}"
+    return IngestPrincipal(f"user:{ctx.user.id}", ctx.user.org_id)
 
 
 # ── Rate limiting (in-process sliding window) ────────────────────
