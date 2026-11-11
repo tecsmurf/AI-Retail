@@ -78,3 +78,9 @@ Continues `15_BUILD_LOG.md`, which covers the v1 demo build.
   the dashboard, live status, still image in the zone editor, events on the
   overview, reconnect after the stream stopped, catching up after the API was
   stopped. Not run against a real recorder. Details in `EDGE.md`.
+
+### Store setup checklist
+* `GET /api/stores/{id}/setup-status` and a "Set up a store" page: store,
+  cameras, box, entry line and zones, first real numbers, sales data. A step
+  is done only when the thing exists (sample data does not count as numbers).
+* 3 tests; page checked in a browser at desktop and phone width.

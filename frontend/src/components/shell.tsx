@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  Activity, BarChart3, Building2, Clapperboard, LayoutDashboard, Lightbulb, LogOut, Menu, Route, Settings2, Users, X,
+  Activity, BarChart3, Building2, Clapperboard, LayoutDashboard, Lightbulb, LogOut, Menu, Rocket, Route, Settings2, Users, X,
   type LucideIcon,
 } from "lucide-react";
 import { OVERVIEW_PATH } from "@/lib/routes";
@@ -34,6 +34,7 @@ const NAV: NavItem[] = [
   { href: "/journeys", label: "Journeys", icon: Route, mobile: false },
   { href: "/insights", label: "Insights", icon: Lightbulb, mobile: true },
   { href: "/videos", label: "Videos", icon: Clapperboard, mobile: true },
+  { href: "/onboarding", label: "Set up a store", icon: Rocket, mobile: false, show: adminOnly },
   { href: "/setup", label: "Cameras & zones", icon: Settings2, mobile: false },
   { href: "/team", label: "Team", icon: Users, mobile: false, show: adminOnly },
   { href: "/system", label: "System", icon: Activity, mobile: false },
