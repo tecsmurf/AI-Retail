@@ -2,7 +2,7 @@
 # torch/torchvision are installed separately from the CPU wheel index in
 # Dockerfile.worker to avoid pulling ~2 GB of CUDA libraries.
 -r requirements.txt
-ultralytics==8.3.52
+ultralytics==8.4.210
 opencv-python-headless==4.10.0.84
 numpy==1.26.4
 supervision==0.25.1
