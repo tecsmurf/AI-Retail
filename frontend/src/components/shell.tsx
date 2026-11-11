@@ -10,9 +10,10 @@ import { cn } from "@/lib/utils";
 import { DashboardProvider } from "./dashboard";
 import { useSession } from "./session";
 import { Loading } from "./ui";
+import { Wordmark } from "./brand";
 
 const NAV = [
-  { href: "/", label: "Overview", icon: LayoutDashboard, mobile: true },
+  { href: "/overview", label: "Overview", icon: LayoutDashboard, mobile: true },
   { href: "/analytics", label: "Analytics", icon: BarChart3, mobile: true },
   { href: "/journeys", label: "Journeys", icon: Route, mobile: false },
   { href: "/insights", label: "Insights", icon: Lightbulb, mobile: true },
@@ -22,14 +23,18 @@ const NAV = [
 ];
 
 function isActive(pathname: string, href: string) {
-  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** Pages that render without the signed-in app shell. */
+export function isPublicPath(pathname: string) {
+  return pathname === "/" || pathname.startsWith("/login");
 }
 
 function Brand() {
   return (
-    <Link href="/" className="flex items-center gap-2">
-      <span className="grid h-8 w-8 place-items-center rounded-lg bg-purple-600 text-sm font-bold text-white">P</span>
-      <span className="font-semibold tracking-tight">PurpleSol</span>
+    <Link href="/overview" aria-label="Footrail overview">
+      <Wordmark />
     </Link>
   );
 }
@@ -39,7 +44,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, checked, logout } = useSession();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  if (pathname.startsWith("/login")) return <>{children}</>;
+  if (isPublicPath(pathname)) return <>{children}</>;
   if (!checked || !user) {
     return (
       <div className="grid min-h-dvh place-items-center">
