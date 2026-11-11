@@ -151,6 +151,11 @@ class CameraWorker(threading.Thread):
                 "width": self.width, "height": self.height, "analysed_seconds": round(min(analysed, 3600.0), 1),
             }
 
+    def add_analysed(self, seconds: float) -> None:
+        """Give back analysed time that a failed check-in could not report."""
+        with self._lock:
+            self._analysed += seconds
+
     def request_still(self) -> None:
         self._want_still = True
 
@@ -227,9 +232,11 @@ class CameraWorker(threading.Thread):
                     if frame is None:
                         if reader.ended:
                             self._set("offline", "The stream ended. Reconnecting.")
+                            log.warning("camera %s: the stream ended; reconnecting", self.code)
                             return
                         if time.monotonic() - last_new_frame > STALL_SECONDS:
                             self._set("offline", "No picture from the camera for 15 seconds. Reconnecting.")
+                            log.warning("camera %s: no picture for %d seconds; reconnecting", self.code, STALL_SECONDS)
                             return
                         time.sleep(0.01)
                         continue

@@ -80,11 +80,16 @@ export function fmtDay(isoDate: string): string {
 
 export const SOURCE_LABELS: Record<string, string> = {
   cv: "CV (processed video)",
+  edge: "Live cameras",
   api: "API",
   sample: "Sample file",
   demo: "Demo (synthetic)",
   legacy_cv: "Legacy v1 CV",
 };
+
+/** Sources that are real observations of a store (everything else is sample, demo or legacy data). */
+export const REAL_SOURCES = ["cv", "edge", "api"];
+export const isRealSource = (s: string) => REAL_SOURCES.includes(s);
 
 export const ZONE_COLORS: Record<string, string> = {
   SHELF: "#a855f7",

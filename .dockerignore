@@ -1,0 +1,10 @@
+# Only edge/Dockerfile is built from the repository root. Keep its build
+# context to the few files it copies (no footage, no node_modules, no .git).
+*
+!backend/app/__init__.py
+!backend/app/config.py
+!backend/app/cv
+!backend/yolo11n.pt
+!edge/requirements.txt
+!edge/purplesol_edge
+**/__pycache__

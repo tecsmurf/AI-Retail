@@ -35,7 +35,9 @@ export function ZoneEditor({ camera, onSaved }: { camera: Camera; onSaved: (c: C
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [imgVersion, setImgVersion] = useState(0);
-  const [hasFrame, setHasFrame] = useState(camera.has_reference_frame);
+  const [uploaded, setUploaded] = useState(false);
+  // The still can also arrive from the in-store box while this editor is open.
+  const hasFrame = camera.has_reference_frame || uploaded;
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<{ zone: number; vertex: number } | null>(null);
   const allowLine = camera.camera_type === "entrance" || camera.camera_type === "other";
@@ -126,7 +128,7 @@ export function ZoneEditor({ camera, onSaved }: { camera: Camera; onSaved: (c: C
     form.append("file", file);
     try {
       await api(`/api/cameras/${camera.id}/reference-frame`, { method: "POST", body: form });
-      setHasFrame(true);
+      setUploaded(true);
       setImgVersion((v) => v + 1);
     } catch (e) {
       setError(e);
@@ -144,11 +146,12 @@ export function ZoneEditor({ camera, onSaved }: { camera: Camera; onSaved: (c: C
       <div className="relative w-full overflow-hidden rounded-xl border border-[var(--border-color)] bg-black" style={{ aspectRatio: aspect }}>
         {hasFrame ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/api/cameras/${camera.id}/reference-frame?v=${imgVersion}`} alt={`Reference frame for ${camera.camera_code}`}
+          <img src={`/api/cameras/${camera.id}/reference-frame?v=${camera.reference_frame_version ?? ""}-${imgVersion}`} alt={`Reference frame for ${camera.camera_code}`}
             className="absolute inset-0 h-full w-full object-fill select-none" draggable={false} />
         ) : (
           <div className="absolute inset-0 grid place-items-center p-6 text-center text-xs text-[var(--text-muted)]">
-            No reference frame yet. Process one recording from this camera (a frame is saved automatically) or upload a still image.
+            No still image yet. It arrives by itself once this camera is live through the store&apos;s box or after one
+            recording is processed. You can also upload a still image.
           </div>
         )}
         <svg ref={svgRef} viewBox="0 0 1 1" preserveAspectRatio="none"

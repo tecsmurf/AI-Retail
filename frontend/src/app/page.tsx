@@ -8,7 +8,7 @@ import { Card, CardTitle, Empty, ErrorState, Loading, Note, PageHeader, Stat } f
 import { api } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 import type { Overview } from "@/lib/types";
-import { fmtCurrency, fmtDuration, fmtInt, fmtPercent } from "@/lib/utils";
+import { fmtCurrency, fmtDuration, fmtInt, fmtPercent, isRealSource } from "@/lib/utils";
 
 export default function OverviewPage() {
   const d = useDashboard();
@@ -38,23 +38,26 @@ export default function OverviewPage() {
 
 function OverviewBody({ o }: { o: Overview }) {
   const { footfall: ff, queue: q, revenue: rev, conversion: conv, coverage } = o;
-  const realOnly = o.data.length === 2 && o.data.includes("cv");
-  const noFootage = realOnly && coverage.processed_video_seconds === 0 && !o.source_breakdown.api;
+  const realOnly = o.data.every(isRealSource);
+  const watched = coverage.processed_video_seconds + coverage.live_seconds;
+  const noFootage = realOnly && watched === 0 && !o.source_breakdown.api && !o.source_breakdown.edge;
+  const hasEntrance = coverage.has_entrance_footage || coverage.has_live_entrance;
   const hours = ff.hourly.filter((h) => h.hour >= 6);
 
   return (
     <div className="space-y-4">
       {noFootage && (
-        <Empty title="No processed footage in this date range">
-          Upload a recording under <Link className="text-purple-300 underline" href="/videos">Videos</Link>, or use
+        <Empty title="Nothing was watched in this date range">
+          Connect the store&apos;s cameras under <Link className="text-purple-300 underline" href="/setup">Cameras &amp; zones</Link>,
+          upload a recording under <Link className="text-purple-300 underline" href="/videos">Videos</Link>, or use
           &ldquo;Jump to latest data&rdquo; above. Numbers below are zero because nothing was observed, not because the store was empty.
         </Empty>
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         <Stat label="Entries" value={fmtInt(ff.entries)}
-          sub={coverage.has_entrance_footage ? `${fmtInt(ff.exits)} exits` : "Needs an entrance camera with an entry line"}
-          tone={coverage.has_entrance_footage || ff.entries ? "default" : "muted"} />
+          sub={hasEntrance ? `${fmtInt(ff.exits)} exits` : "Needs an entrance camera with an entry line"}
+          tone={hasEntrance || ff.entries ? "default" : "muted"} />
         <Stat label="Zone visits" value={fmtInt(o.zone_visits)} sub={`${o.zones.length} zones with visits`} />
         <Stat label="Avg. zone dwell" value={fmtDuration(o.avg_zone_dwell_seconds)} sub="Per completed visit" />
         <Stat label="Median queue wait" value={fmtDuration(q.median_wait_seconds)}
@@ -93,17 +96,24 @@ function OverviewBody({ o }: { o: Overview }) {
           ) : <Empty title="No queue activity observed" />}
         </Card>
         <Card>
-          <CardTitle title="Footage behind these numbers" hint={`${fmtDuration(coverage.processed_video_seconds)} of processed video in range`} />
+          <CardTitle title="Footage behind these numbers"
+            hint={[coverage.live_seconds ? `${fmtDuration(coverage.live_seconds)} live` : "",
+              coverage.processed_video_seconds || !coverage.live_seconds ? `${fmtDuration(coverage.processed_video_seconds)} of processed video` : "",
+            ].filter(Boolean).join(" · ") + " in range"} />
           {Object.keys(coverage.cameras).length ? (
             <ul className="divide-y divide-[var(--border-color)] text-sm">
               {Object.entries(coverage.cameras).map(([code, c]) => (
                 <li key={code} className="flex justify-between py-2">
                   <span>{code} <span className="text-xs capitalize text-[var(--text-muted)]">{c.camera_type}</span></span>
-                  <span className="tabular-nums text-[var(--text-secondary)]">{c.videos} video{c.videos === 1 ? "" : "s"} · {fmtDuration(c.seconds)}</span>
+                  <span className="tabular-nums text-[var(--text-secondary)]">
+                    {[c.live_seconds ? `${fmtDuration(c.live_seconds)} live` : "",
+                      c.videos || !c.live_seconds ? `${c.videos} video${c.videos === 1 ? "" : "s"} · ${fmtDuration(c.seconds)}` : "",
+                    ].filter(Boolean).join(" · ")}
+                  </span>
                 </li>
               ))}
             </ul>
-          ) : <Note>No processed video overlaps this range.</Note>}
+          ) : <Note>No live camera time or processed video overlaps this range.</Note>}
           <div className="mt-3"><SourceLine breakdown={o.source_breakdown} /></div>
         </Card>
       </div>

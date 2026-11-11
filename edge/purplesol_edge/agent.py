@@ -40,6 +40,7 @@ log = logging.getLogger("purplesol_edge")
 
 EXIT_NOT_PAIRED = 3
 SEND_EVERY_SECONDS = 2.0
+OFFLINE_LOG_EVERY_SECONDS = 60.0
 EVENT_BATCH = 500
 SAMPLE_BATCH = 1000
 
@@ -205,6 +206,7 @@ class Agent:
         self.heartbeat_seconds = 30.0
         self.sent_events = 0
         self.last_error: Optional[str] = None
+        self._offline_logged = 0.0
 
     # configuration ------------------------------------------------
 
@@ -249,13 +251,26 @@ class Agent:
                 log.error("the cloud rejected a batch of %d items (%s); dropping it", len(ids), exc.message)
                 self.outbox.delete(ids)
                 return True
-            self.last_error = exc.message
-            log.warning("could not send (%s); %d items wait in the queue", exc.message, self.outbox.count())
+            self._offline(exc.message)
             return False
         self.outbox.delete(ids)
         self.sent_events += res.get("inserted", 0)
-        self.last_error = None
+        self._online()
         return True
+
+    def _offline(self, message: str) -> None:
+        """Note that the cloud cannot be reached, without filling the log during a long outage."""
+        now = time.monotonic()
+        if self.last_error is None or now - self._offline_logged >= OFFLINE_LOG_EVERY_SECONDS:
+            self._offline_logged = now
+            log.warning("cloud not reachable (%s); cameras keep running, %d items wait in the queue",
+                        message, self.outbox.count())
+        self.last_error = message
+
+    def _online(self) -> None:
+        if self.last_error is not None:
+            log.info("cloud reachable again; sending %d waiting items", self.outbox.count())
+        self.last_error = None
 
     def heartbeat(self) -> None:
         cameras = [w.health() for w in self.workers.values()]
@@ -264,11 +279,21 @@ class Agent:
             if cam["camera_id"] not in running:
                 cameras.append({"camera_id": cam["camera_id"], "status": "unconfigured",
                                 "message": "No stream address for this camera in the box's edge.json."})
-        res = self.client.heartbeat({
-            "agent_version": __version__, "hostname": socket.gethostname(),
-            "config_version": (self.config or {}).get("config_version"), "cameras": cameras,
-            "stats": {"queued": self.outbox.count(), "sent_events": self.sent_events, "dropped": self.outbox.dropped},
-        })
+        try:
+            res = self.client.heartbeat({
+                "agent_version": __version__, "hostname": socket.gethostname(),
+                "config_version": (self.config or {}).get("config_version"), "cameras": cameras,
+                "stats": {"queued": self.outbox.count(), "sent_events": self.sent_events,
+                          "dropped": self.outbox.dropped},
+            })
+        except ApiError:
+            # Not delivered: keep the analysed time so the next check-in reports it.
+            for cam in cameras:
+                worker = self.workers.get(cam["camera_id"])
+                if worker is not None and cam.get("analysed_seconds"):
+                    worker.add_analysed(cam["analysed_seconds"])
+            raise
+        self._online()
         if res.get("config_changed"):
             log.info("configuration changed in the dashboard; reloading")
             self.apply_config(self.client.config())
@@ -309,8 +334,7 @@ class Agent:
                 return EXIT_NOT_PAIRED
             except ApiError as exc:
                 # Offline: cameras keep analysing, the queue keeps the results.
-                self.last_error = exc.message
-                log.warning("cloud not reachable (%s); will retry", exc.message)
+                self._offline(exc.message)
             self.stopping.wait(SEND_EVERY_SECONDS)
         self.shutdown()
         return 0

@@ -71,6 +71,7 @@ visitor and entry counts correct on all 3 counting clips. Method and limits:
 | [PROJECT_AUDIT](docs/PROJECT_AUDIT.md) | Problems found in v1 and how each was fixed |
 | [DEPLOYMENT](docs/DEPLOYMENT.md) | Neon, R2, Railway and Vercel, step by step |
 | [REMOTE_ACCESS](docs/REMOTE_ACCESS.md) | Using and changing PurpleSol from a phone |
+| [EDGE](docs/EDGE.md) | Live cameras: the box that runs in the store, what leaves the store, what was tested |
 | [CV_VALIDATION](docs/CV_VALIDATION.md) | Accuracy, speed, setup advice for cameras |
 | [METRICS](docs/METRICS.md) | Definition of every number on the dashboard |
 | [DECISIONS](docs/DECISIONS.md) | Engineering decisions and their trade-offs |
