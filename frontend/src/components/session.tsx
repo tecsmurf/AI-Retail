@@ -12,8 +12,20 @@ interface SessionValue {
   /** May upload recordings and start, cancel or retry processing. */
   canUpload: boolean;
   login: (email: string, password: string) => Promise<void>;
+  signup: (body: SignupInput) => Promise<void>;
   logout: (everywhere?: boolean) => Promise<void>;
   refresh: () => Promise<void>;
+}
+
+/** Pages that work without signing in. */
+export const PUBLIC_PATHS = ["/login", "/signup"];
+export const isPublicPath = (p: string) => PUBLIC_PATHS.some((x) => p === x || p.startsWith(`${x}/`));
+
+export interface SignupInput {
+  company_name: string;
+  full_name: string;
+  email: string;
+  password: string;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -48,7 +60,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setUnauthorizedHandler(() => {
       setUser(null);
-      if (!window.location.pathname.startsWith("/login")) {
+      if (!isPublicPath(window.location.pathname)) {
         router.replace(`/login?next=${encodeURIComponent(window.location.pathname)}`);
       }
     });
@@ -56,13 +68,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   useEffect(() => {
-    if (checked && !user && !pathname.startsWith("/login")) {
+    if (checked && !user && !isPublicPath(pathname)) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     }
   }, [checked, user, pathname, router]);
 
   const login = useCallback(async (email: string, password: string) => {
     setUser(await api<Me>("/api/auth/login", { json: { email, password } }));
+    setChecked(true);
+  }, []);
+
+  const signup = useCallback(async (body: SignupInput) => {
+    setUser(await api<Me>("/api/auth/signup", { json: body }));
     setChecked(true);
   }, []);
 
@@ -76,8 +93,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   const value = useMemo(
-    () => ({ user, checked, isAdmin: !!user?.is_admin, canUpload: !!user?.can_upload, login, logout, refresh }),
-    [user, checked, login, logout, refresh],
+    () => ({ user, checked, isAdmin: !!user?.is_admin, canUpload: !!user?.can_upload, login, signup, logout, refresh }),
+    [user, checked, login, signup, logout, refresh],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
