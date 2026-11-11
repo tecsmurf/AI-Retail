@@ -1,18 +1,17 @@
-"""Authentication and user management."""
+"""Sign-in, sign-out and the caller's own account."""
 
 from __future__ import annotations
-
-import uuid
-from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.access import load_scope
 from app.config import settings
 from app.database import get_db, utcnow
+from app.models.org import Organization, UserRegionAccess, UserStoreAccess
 from app.models.user import User
-from app.schemas.auth import LoginRequest, PasswordChange, UserCreate, UserResponse
+from app.schemas.auth import LoginRequest, MeResponse, PasswordChange
 from app.security import (
     SESSION_COOKIE,
     client_ip,
@@ -20,12 +19,11 @@ from app.security import (
     hash_password,
     issue_token,
     rate_limiter,
-    require_admin,
     verify_password,
 )
+from app.services import audit
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
-users_router = APIRouter(prefix="/api/users", tags=["Users"])
 
 # Constant-time-ish response for unknown emails.
 _DUMMY_HASH = hash_password("dummy-password-not-used")
@@ -43,7 +41,36 @@ def _set_cookie(response: Response, token: str) -> None:
     )
 
 
-@router.post("/login", response_model=UserResponse)
+async def user_grants(db: AsyncSession, user_ids) -> tuple[dict, dict]:
+    """Explicit store and region grants per user id."""
+    ids = list(user_ids)
+    stores: dict = {i: [] for i in ids}
+    regions: dict = {i: [] for i in ids}
+    if ids:
+        for uid, sid in (await db.execute(
+            select(UserStoreAccess.user_id, UserStoreAccess.store_id).where(UserStoreAccess.user_id.in_(ids))
+        )).all():
+            stores[uid].append(sid)
+        for uid, rid in (await db.execute(
+            select(UserRegionAccess.user_id, UserRegionAccess.region_id).where(UserRegionAccess.user_id.in_(ids))
+        )).all():
+            regions[uid].append(rid)
+    return stores, regions
+
+
+async def me_response(db: AsyncSession, user: User) -> MeResponse:
+    scope = await load_scope(db, user)
+    org = await db.get(Organization, user.org_id)
+    return MeResponse(
+        id=user.id, email=user.email, full_name=user.full_name, role=user.role, is_active=user.is_active,
+        created_at=user.created_at, last_login_at=user.last_login_at,
+        store_ids=sorted(scope.store_ids, key=str), region_ids=sorted(scope.region_ids, key=str),
+        org_id=user.org_id, org_name=org.name if org else "", all_stores=scope.all_stores,
+        can_upload=scope.can_upload, is_admin=scope.is_admin,
+    )
+
+
+@router.post("/login", response_model=MeResponse)
 async def login(body: LoginRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
     rate_limiter.check(f"login:{client_ip(request)}", settings.login_rate_limit_per_minute, 60)
     user = (
@@ -53,8 +80,9 @@ async def login(body: LoginRequest, request: Request, response: Response, db: As
     if not user or not ok or not user.is_active:
         raise HTTPException(401, "Invalid email or password")
     user.last_login_at = utcnow()
+    audit.record(db, "auth.login", user=user, request=request)
     _set_cookie(response, issue_token(user))
-    return user
+    return await me_response(db, user)
 
 
 @router.post("/logout", status_code=204)
@@ -64,57 +92,31 @@ async def logout(response: Response):
     return response
 
 
-@router.get("/me", response_model=UserResponse)
-async def me(user: User = Depends(current_user)):
-    return user
+@router.get("/me", response_model=MeResponse)
+async def me(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    return await me_response(db, user)
 
 
 @router.post("/password", status_code=204)
 async def change_password(
-    body: PasswordChange, response: Response, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)
+    body: PasswordChange, request: Request, response: Response, user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     if not verify_password(body.current_password, user.password_hash):
         raise HTTPException(400, "Current password is incorrect")
     user.password_hash = hash_password(body.new_password)
     user.session_version += 1  # sign out every other session
+    audit.record(db, "auth.password_change", user=user, request=request)
     _set_cookie(response, issue_token(user))
     response.status_code = 204
     return response
 
 
 @router.post("/logout-everywhere", status_code=204)
-async def logout_everywhere(response: Response, user: User = Depends(current_user)):
+async def logout_everywhere(request: Request, response: Response, user: User = Depends(current_user),
+                            db: AsyncSession = Depends(get_db)):
     user.session_version += 1
+    audit.record(db, "auth.logout_everywhere", user=user, request=request)
     response.delete_cookie(SESSION_COOKIE, path="/")
     response.status_code = 204
     return response
-
-
-@users_router.get("", response_model=List[UserResponse])
-async def list_users(_: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
-    return list((await db.execute(select(User).order_by(User.created_at))).scalars().all())
-
-
-@users_router.post("", response_model=UserResponse, status_code=201)
-async def create_user(body: UserCreate, _: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
-    email = body.email.strip().lower()
-    exists = (await db.execute(select(User).where(func.lower(User.email) == email))).scalar_one_or_none()
-    if exists:
-        raise HTTPException(409, "A user with this email already exists")
-    user = User(email=email, password_hash=hash_password(body.password), role=body.role, is_active=True,
-                session_version=1)
-    db.add(user)
-    await db.flush()
-    return user
-
-
-@users_router.post("/{user_id}/deactivate", response_model=UserResponse)
-async def deactivate_user(user_id: uuid.UUID, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
-    user = await db.get(User, user_id)
-    if not user:
-        raise HTTPException(404, "User not found")
-    if user.id == admin.id:
-        raise HTTPException(400, "You cannot deactivate yourself")
-    user.is_active = False
-    user.session_version += 1
-    return user

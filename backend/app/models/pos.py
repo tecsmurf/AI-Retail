@@ -6,17 +6,18 @@ import uuid
 from datetime import date, datetime, time
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Float, Index, Integer, String, Time, UniqueConstraint, Uuid
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, String, Time, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base, utcnow
+from app.models.org import DEFAULT_ORG_ID
 
 
 class POSTransaction(Base):
     """One POS line item.
 
     ``store_id`` holds the POS system's own store code (e.g. "ST1076"), which
-    maps to ``Store.pos_store_code``. ``order_date``/``order_time`` are in the
+    maps to ``Store.pos_store_code`` within the same organisation. ``order_date``/``order_time`` are in the
     store's local time zone, as exported by the POS; ``ordered_at_utc`` is the
     same instant converted to naive UTC at import time.
     """
@@ -24,6 +25,9 @@ class POSTransaction(Base):
     __tablename__ = "pos_transactions"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), index=True, default=DEFAULT_ORG_ID
+    )
     order_id: Mapped[int] = mapped_column(Integer, index=True)
     store_id: Mapped[str] = mapped_column(String(50), index=True)
     order_date: Mapped[date] = mapped_column(Date)
@@ -37,7 +41,7 @@ class POSTransaction(Base):
 
     __table_args__ = (
         Index("ix_pos_store_date", "store_id", "order_date"),
-        UniqueConstraint("store_id", "order_id", "product_id", name="uq_pos_line"),
+        UniqueConstraint("org_id", "store_id", "order_id", "product_id", name="uq_pos_line"),
     )
 
     def __repr__(self) -> str:

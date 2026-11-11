@@ -23,9 +23,11 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.database import async_session
+from app.models.org import DEFAULT_ORG_ID
 from app.models.store import Camera, Store, Zone
 from app.services import pos_service
 from app.services.ingest import import_legacy_cv_events, import_sample_events
+from app.services.orgs import ensure_default_org
 
 REPO_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = Path(os.environ.get("PURPLESOL_DATA_DIR", REPO_DIR / "purple"))
@@ -95,10 +97,15 @@ ZONES = {
 
 async def seed_reference(db) -> dict:
     created = {"stores": 0, "cameras": 0, "zones": 0}
-    stores = {s.store_code: s for s in (await db.execute(select(Store))).scalars().all()}
+    # The bundled reference stores always belong to the default organisation.
+    await ensure_default_org(db)
+    stores = {
+        s.store_code: s
+        for s in (await db.execute(select(Store).where(Store.org_id == DEFAULT_ORG_ID))).scalars().all()
+    }
     for data in STORES:
         if data["store_code"] not in stores:
-            store = Store(**data, is_active=True)
+            store = Store(**data, org_id=DEFAULT_ORG_ID, is_active=True)
             db.add(store)
             await db.flush()
             stores[store.store_code] = store

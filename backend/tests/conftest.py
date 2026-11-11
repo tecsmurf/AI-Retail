@@ -29,8 +29,10 @@ from sqlalchemy import delete  # noqa: E402
 
 from app import migrate  # noqa: E402
 from app.database import Base, async_session, engine  # noqa: E402
+from app.models.org import DEFAULT_ORG_ID, Organization  # noqa: E402
 from app.models.user import ROLE_ADMIN, ROLE_VIEWER, User  # noqa: E402
 from app.security import hash_password, rate_limiter  # noqa: E402
+from app.services.orgs import ensure_default_org  # noqa: E402
 from app.storage import reset_storage  # noqa: E402
 
 ADMIN = ("admin@example.com", "admin-password-123")
@@ -48,6 +50,10 @@ def migrated_database():
 async def clean_state():
     rate_limiter.reset()
     reset_storage()
+    # The migration creates the default organisation; tests empty every table.
+    async with async_session() as db:
+        await ensure_default_org(db)
+        await db.commit()
     yield
     async with async_session() as db:
         for table in reversed(Base.metadata.sorted_tables):
@@ -56,9 +62,17 @@ async def clean_state():
     await engine.dispose()
 
 
-async def make_user(email: str, password: str, role: str) -> User:
+async def make_org(name: str, slug: str) -> Organization:
     async with async_session() as db:
-        user = User(email=email, password_hash=hash_password(password), role=role, is_active=True)
+        org = Organization(name=name, slug=slug)
+        db.add(org)
+        await db.commit()
+        return org
+
+
+async def make_user(email: str, password: str, role: str, org_id=DEFAULT_ORG_ID) -> User:
+    async with async_session() as db:
+        user = User(email=email, password_hash=hash_password(password), role=role, is_active=True, org_id=org_id)
         db.add(user)
         await db.commit()
         return user
@@ -74,6 +88,15 @@ def _client() -> AsyncClient:
 async def anon():
     async with _client() as c:
         yield c
+
+
+async def login_as(email: str, password: str) -> AsyncClient:
+    """A signed-in client for an existing user (caller closes it)."""
+    c = _client()
+    r = await c.post("/api/auth/login", json={"email": email, "password": password})
+    assert r.status_code == 200, r.text
+    c.headers["X-PurpleSol-CSRF"] = "1"
+    return c
 
 
 async def _login(email: str, password: str, role: str) -> AsyncClient:
