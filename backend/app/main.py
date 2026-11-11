@@ -18,6 +18,7 @@ from app.api.edge import router as edge_router
 from app.api.events import router as events_router
 from app.api.org import router as org_router
 from app.api.pos import router as pos_router
+from app.api.reports import router as reports_router
 from app.api.setup import router as setup_router
 from app.api.stores import router as stores_router
 from app.api.system import request_metrics
@@ -112,7 +113,7 @@ async def request_context(request: Request, call_next):
 
 
 for r in (system_router, auth_router, users_router, org_router, stores_router, events_router, analytics_router,
-          videos_router, pos_router, edge_router, setup_router):
+          videos_router, pos_router, edge_router, setup_router, reports_router):
     app.include_router(r)
 
 

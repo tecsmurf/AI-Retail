@@ -171,3 +171,30 @@ body {
 
 input[type="date"] { color-scheme: dark; }
 select { color-scheme: dark; }
+
+/* Printed reports: black on white, no app chrome. */
+@page {
+  margin: 14mm;
+}
+
+@media print {
+  :root {
+    --bg-primary: #fff;
+    --bg-secondary: #fff;
+    --bg-card: #fff;
+    --border-color: #d4d4d8;
+    --text-primary: #000;
+    --text-secondary: #3f3f46;
+    --text-muted: #71717a;
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .card {
+    border: 0;
+    padding: 0;
+  }
+}

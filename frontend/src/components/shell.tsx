@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  Activity, BarChart3, Building2, Clapperboard, LayoutDashboard, Lightbulb, LogOut, Menu, Rocket, Route, Settings2, Users, X,
+  Activity, BarChart3, Building2, Clapperboard, FileText, LayoutDashboard, Lightbulb, LogOut, Menu, Rocket, Route, Settings2, Users, X,
   type LucideIcon,
 } from "lucide-react";
 import { OVERVIEW_PATH } from "@/lib/routes";
@@ -34,6 +34,7 @@ const NAV: NavItem[] = [
   { href: "/journeys", label: "Journeys", icon: Route, mobile: false },
   { href: "/insights", label: "Insights", icon: Lightbulb, mobile: true },
   { href: "/videos", label: "Videos", icon: Clapperboard, mobile: true },
+  { href: "/reports", label: "Reports", icon: FileText, mobile: false },
   { href: "/onboarding", label: "Set up a store", icon: Rocket, mobile: false, show: adminOnly },
   { href: "/setup", label: "Cameras & zones", icon: Settings2, mobile: false },
   { href: "/team", label: "Team", icon: Users, mobile: false, show: adminOnly },
@@ -74,7 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <DashboardProvider>
       <div className="min-h-dvh lg:flex">
         {/* Desktop sidebar */}
-        <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-[var(--border-color)] bg-[var(--bg-secondary)] p-4 lg:flex">
+        <aside className="sticky top-0 hidden print:!hidden h-dvh w-60 shrink-0 flex-col border-r border-[var(--border-color)] bg-[var(--bg-secondary)] p-4 lg:flex">
           <Brand />
           <nav className="mt-6 flex flex-1 flex-col gap-1">
             {nav.map(({ href, label, icon: Icon }) => (
@@ -99,17 +100,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* Mobile top bar */}
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[var(--border-color)] bg-[var(--bg-primary)]/90 px-4 backdrop-blur lg:hidden">
+        <header className="sticky top-0 z-30 flex print:hidden h-14 items-center justify-between border-b border-[var(--border-color)] bg-[var(--bg-primary)]/90 px-4 backdrop-blur lg:hidden">
           <Brand />
           <button aria-label="Menu" onClick={() => setMoreOpen(true)} className="grid h-10 w-10 place-items-center rounded-lg hover:bg-white/5">
             <Menu className="h-5 w-5" />
           </button>
         </header>
 
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-28 pt-4 sm:px-6 lg:pb-10 lg:pt-8">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-28 pt-4 sm:px-6 lg:pb-10 lg:pt-8 print:max-w-none print:p-0">{children}</main>
 
         {/* Mobile bottom navigation */}
-        <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
+        <nav className="fixed inset-x-0 bottom-0 z-30 grid print:hidden grid-cols-4 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
           {nav.filter((n) => n.mobile).map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href}
               className={cn("flex h-16 flex-col items-center justify-center gap-1 text-[11px] text-[var(--text-muted)]",

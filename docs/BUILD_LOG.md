@@ -84,3 +84,11 @@ Continues `15_BUILD_LOG.md`, which covers the v1 demo build.
   cameras, box, entry line and zones, first real numbers, sales data. A step
   is done only when the thing exists (sample data does not count as numbers).
 * 3 tests; page checked in a browser at desktop and phone width.
+
+### Reports
+* CSV downloads (`/api/reports/...`): all stores side by side, one store day
+  by day (up to 92 days), and zones. Same definitions and access rules as the
+  dashboard; empty cells mean "not measured"; every export is in the activity log.
+* A Reports page with the downloads and a one-page summary that prints black
+  on white. Checked in a browser: downloaded the daily CSV, saved the summary
+  as a PDF. Scheduled email reports are not built; they need an email service.
