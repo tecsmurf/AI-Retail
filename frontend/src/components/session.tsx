@@ -3,12 +3,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { api, setUnauthorizedHandler } from "@/lib/api";
-import type { User } from "@/lib/types";
+import type { Me } from "@/lib/types";
 
 interface SessionValue {
-  user: User | null;
+  user: Me | null;
   checked: boolean;
   isAdmin: boolean;
+  /** May upload recordings and start, cancel or retry processing. */
+  canUpload: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: (everywhere?: boolean) => Promise<void>;
   refresh: () => Promise<void>;
@@ -17,14 +19,14 @@ interface SessionValue {
 const SessionContext = createContext<SessionValue | null>(null);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<Me | null>(null);
   const [checked, setChecked] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   const refresh = useCallback(async () => {
     try {
-      setUser(await api<User>("/api/auth/me"));
+      setUser(await api<Me>("/api/auth/me"));
     } catch {
       setUser(null);
     } finally {
@@ -34,7 +36,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let alive = true;
-    api<User>("/api/auth/me").then(
+    api<Me>("/api/auth/me").then(
       (u) => alive && (setUser(u), setChecked(true)),
       () => alive && (setUser(null), setChecked(true)),
     );
@@ -60,7 +62,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [checked, user, pathname, router]);
 
   const login = useCallback(async (email: string, password: string) => {
-    setUser(await api<User>("/api/auth/login", { json: { email, password } }));
+    setUser(await api<Me>("/api/auth/login", { json: { email, password } }));
     setChecked(true);
   }, []);
 
@@ -74,7 +76,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   const value = useMemo(
-    () => ({ user, checked, isAdmin: user?.role === "admin", login, logout, refresh }),
+    () => ({ user, checked, isAdmin: !!user?.is_admin, canUpload: !!user?.can_upload, login, logout, refresh }),
     [user, checked, login, logout, refresh],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
