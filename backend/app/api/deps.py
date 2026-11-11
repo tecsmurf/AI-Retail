@@ -28,7 +28,7 @@ class RangeParams:
         self,
         start: Optional[date] = Query(None, description="First local date (YYYY-MM-DD), inclusive"),
         end: Optional[date] = Query(None, description="Last local date (YYYY-MM-DD), inclusive"),
-        data: str = Query("real", description="'real' (CV+API), 'all' (adds sample/demo/legacy), or a comma list"),
+        data: str = Query("real", description="'real' (recordings, live boxes, API), 'all' (adds sample/demo/legacy), or a comma list"),
     ) -> None:
         self.start = start
         self.end = end

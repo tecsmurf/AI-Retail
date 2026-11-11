@@ -107,6 +107,33 @@ async def rebuild_for_job(db: AsyncSession, store_id: uuid.UUID, job_id: uuid.UU
     return len(journeys)
 
 
+async def rebuild_for_customers(db: AsyncSession, store_id: uuid.UUID, customer_ids: Sequence[str], source: str) -> int:
+    """Rebuild the journeys of specific anonymous tracks from all of their
+    events (used for live streams, where a track's events arrive in batches)."""
+    ids = sorted(set(customer_ids))
+    if not ids:
+        return 0
+    built = 0
+    for i in range(0, len(ids), 500):
+        chunk = ids[i:i + 500]
+        old = [j for (j,) in (await db.execute(
+            select(CustomerJourney.id).where(
+                CustomerJourney.store_id == store_id, CustomerJourney.source == source,
+                CustomerJourney.job_id.is_(None), CustomerJourney.customer_id.in_(chunk))
+        )).all()]
+        if old:  # steps first: SQLite does not enforce ON DELETE CASCADE by default
+            await db.execute(delete(JourneyEvent).where(JourneyEvent.journey_id.in_(old)))
+            await db.execute(delete(CustomerJourney).where(CustomerJourney.id.in_(old)))
+        events = (await db.execute(
+            select(Event).where(Event.store_id == store_id, Event.source == source, Event.customer_id.in_(chunk))
+        )).scalars().all()
+        journeys = build_journeys(store_id, None, events, source)
+        db.add_all(journeys)
+        built += len(journeys)
+    await db.flush()
+    return built
+
+
 async def list_journeys(
     db: AsyncSession,
     store_id: uuid.UUID,

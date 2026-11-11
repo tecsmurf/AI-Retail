@@ -89,7 +89,7 @@ async def list_events(
     customer_id: Optional[str] = Query(None),
     zone_name: Optional[str] = Query(None),
     job_id: Optional[uuid.UUID] = Query(None),
-    source: Optional[str] = Query(None, description="cv, api, sample, demo, legacy_cv"),
+    source: Optional[str] = Query(None, description="cv, edge, api, sample, demo, legacy_cv"),
     start_time: Optional[datetime] = Query(None, description="UTC (or with offset)"),
     end_time: Optional[datetime] = Query(None),
     limit: int = Query(100, ge=1, le=1000),

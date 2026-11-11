@@ -1,6 +1,7 @@
 """SQLAlchemy ORM Models Package."""
 
 from app.models.anomaly import Alert, Anomaly
+from app.models.edge import EdgeCoverage, EdgeDevice
 from app.models.event import CustomerJourney, Event, JourneyEvent
 from app.models.jobs import OccupancySample, ProcessingJob, VideoAsset, WorkerHeartbeat
 from app.models.org import AuditLog, Organization, Region, UserRegionAccess, UserStoreAccess
@@ -28,4 +29,6 @@ __all__ = [
     "UserStoreAccess",
     "UserRegionAccess",
     "AuditLog",
+    "EdgeDevice",
+    "EdgeCoverage",
 ]

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import uuid
-from typing import List
+from typing import List, Optional
 
+import structlog
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy import func, select, update
@@ -32,8 +34,28 @@ from app.services import audit
 from app.storage import StorageError, get_storage
 
 router = APIRouter(tags=["Stores"])
+logger = structlog.get_logger("purplesol.stores")
 
 MAX_FRAME_BYTES = 10 * 1024 * 1024
+
+
+def reference_frame_version(key: Optional[str]) -> Optional[str]:
+    return hashlib.sha256(key.encode()).hexdigest()[:10] if key else None
+
+
+def set_reference_frame(camera: Camera, key: Optional[str]) -> None:
+    """Point the camera at a new still image (or none) and delete the old
+    file, so replaced stills do not pile up in storage."""
+    old = camera.reference_frame_key
+    camera.reference_frame_key = key
+    if key is None:
+        camera.reference_frame_width = None
+        camera.reference_frame_height = None
+    if old and old != key:
+        try:
+            get_storage().delete(old)
+        except Exception as exc:  # noqa: BLE001 - a leftover file must not fail the request
+            logger.warning("reference_frame_delete_failed", key=old, error=type(exc).__name__)
 
 
 def camera_response(c: Camera) -> CameraResponse:
@@ -42,6 +64,7 @@ def camera_response(c: Camera) -> CameraResponse:
         is_active=c.is_active, resolution_width=c.resolution_width, resolution_height=c.resolution_height,
         fps=c.fps, entry_line=c.entry_line, has_reference_frame=bool(c.reference_frame_key),
         reference_frame_width=c.reference_frame_width, reference_frame_height=c.reference_frame_height,
+        reference_frame_version=reference_frame_version(c.reference_frame_key),
         config_version=c.config_version or 1,
     )
 
@@ -240,7 +263,7 @@ async def upload_reference_frame(
             raise HTTPException(415, "Upload a JPEG image")
         key = f"frames/{camera.id}/uploaded-{uuid.uuid4().hex[:8]}.jpg"
         get_storage().put_bytes(key, data, "image/jpeg")
-        camera.reference_frame_key = key
+        set_reference_frame(camera, key)
         return camera_response(camera)
     img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
     if img is None:
@@ -248,7 +271,7 @@ async def upload_reference_frame(
     ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85])
     key = f"frames/{camera.id}/uploaded-{uuid.uuid4().hex[:8]}.jpg"
     get_storage().put_bytes(key, buf.tobytes(), "image/jpeg")
-    camera.reference_frame_key = key
+    set_reference_frame(camera, key)
     camera.reference_frame_height, camera.reference_frame_width = img.shape[:2]
     return camera_response(camera)
 
