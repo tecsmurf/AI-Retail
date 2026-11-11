@@ -154,6 +154,8 @@ async def system_status(scope: Scope = Depends(get_scope), db: AsyncSession = De
             "analysis_fps": settings.analysis_fps,
             "max_upload_mb": settings.max_upload_bytes // (1024 * 1024),
             "video_retention_days": settings.video_retention_days,
+            "audit_ip_retention_days": settings.audit_ip_retention_days,
+            "session_ttl_hours": settings.session_ttl_hours,
             "job_max_attempts": settings.job_max_attempts,
         },
     }

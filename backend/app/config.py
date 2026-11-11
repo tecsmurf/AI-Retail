@@ -85,6 +85,8 @@ class Settings(BaseSettings):
         default=".mp4,.mov,.m4v,.mkv,.avi,.webm", alias="ALLOWED_VIDEO_EXTENSIONS"
     )
     video_retention_days: int = Field(default=30, alias="VIDEO_RETENTION_DAYS")
+    # IP addresses in the audit log are blanked after this many days (0 keeps them).
+    audit_ip_retention_days: int = Field(default=90, alias="AUDIT_IP_RETENTION_DAYS")
 
     @property
     def video_extensions(self) -> List[str]:

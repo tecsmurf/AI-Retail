@@ -348,13 +348,9 @@ async def heartbeat(body: Heartbeat, request: Request, device: EdgeDevice = Depe
     if body.hostname:
         device.hostname = body.hostname
     device.stats = {k: v for k, v in list(body.stats.items())[:20]}
+    # A still image is only ever sent because an administrator asked for it.
     wanted = [c for c in (device.snapshot_requests or []) if uuid.UUID(c) in own]
     config = await build_config(db, device)
-    # Also ask once for a still of cameras that have none, so zones can be drawn.
-    for c in config["cameras"]:
-        if not c["has_reference_frame"] and status.get(c["camera_id"], {}).get("status") == "online" \
-                and c["camera_id"] not in wanted:
-            wanted.append(c["camera_id"])
     return {
         "server_time": _iso(now),
         "config_version": config["config_version"],
@@ -483,10 +479,13 @@ def jpeg_size(data: bytes) -> Optional[tuple[int, int]]:
 async def upload_snapshot(camera_id: uuid.UUID, request: Request, device: EdgeDevice = Depends(current_device),
                           db: AsyncSession = Depends(get_db)):
     """One still image (JPEG) of a camera, used to draw its zones in the
-    dashboard. Replaces the previous still; it is the only picture the box sends."""
+    dashboard. Replaces the previous still; it is the only picture the box
+    sends, and it is only accepted while an administrator's request is open."""
     camera = await db.get(Camera, camera_id)
     if not camera or camera.store_id != device.store_id:
         raise HTTPException(404, "Camera not found")
+    if str(camera.id) not in (device.snapshot_requests or []):
+        raise HTTPException(409, "No still image was asked for")
     data = b""
     async for chunk in request.stream():
         data += chunk

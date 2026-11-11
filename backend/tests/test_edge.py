@@ -125,8 +125,9 @@ async def test_heartbeat_reports_health_coverage_and_config_changes(admin, paire
     ]}
     r = (await box.post("/api/edge/heartbeat", json=beat)).json()
     assert r["config_changed"] is False
-    # Cameras without a still image are asked for one while they are online.
-    assert r["snapshot_requests"] == [ent["id"]]
+    # No picture is asked for unless an administrator presses the button.
+    assert r["snapshot_requests"] == []
+    assert (await box.put(f"/api/edge/cameras/{ent['id']}/snapshot", content=JPEG)).status_code == 409
     await box.post("/api/edge/heartbeat", json=beat)
     dev = (await admin.get(f"/api/stores/{store['id']}/edge-devices")).json()["items"][0]
     cams = {c["camera_code"]: c for c in dev["cameras"]}
@@ -234,6 +235,9 @@ async def test_snapshot_becomes_the_cameras_still_image(admin, paired):
 
     async with async_session() as db:
         old_key = (await db.execute(select(Camera.reference_frame_key).where(Camera.camera_code == "BILL"))).scalar_one()
+    # A second picture is refused until an administrator asks again.
+    assert (await box.put(f"/api/edge/cameras/{bill['id']}/snapshot", content=JPEG)).status_code == 409
+    assert (await admin.post(f"/api/edge-devices/{created['id']}/snapshot-request/{bill['id']}")).status_code == 202
     assert (await box.put(f"/api/edge/cameras/{bill['id']}/snapshot", content=JPEG)).status_code == 204
     assert get_storage().size(old_key) is None
     cams = {c["id"]: c for c in (await admin.get(f"/api/stores/{store['id']}/cameras")).json()}

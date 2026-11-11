@@ -15,12 +15,13 @@ been run against a real recorder (NVR) or a real IP camera. See
 | Video frames (analysed in memory, never written to disk) | Events: entry, exit, zone enter/exit, queue enter/exit, with a time and an anonymous track label |
 | Camera stream addresses, recorder user names and passwords (`edge.json`) | Queue length samples every 5 seconds |
 | The box's token (`state/token`, readable only by its user) | Camera health: live or not, frame rate, picture size, seconds analysed |
-| Unsent events while the internet is down (`state/outbox.db`) | One still image per camera, so zones can be drawn on it |
+| Unsent events while the internet is down (`state/outbox.db`) | One still image of a camera, only when an administrator asks for it |
 
-The still image is the only picture that leaves the store. It is sent when a
-camera has none yet, and again only when an administrator presses "Refresh
-still image". It can show people who happened to be in view at that moment,
-so take it when the store is quiet or replace it with an uploaded image.
+The still image is the only picture that leaves the store. It is sent only
+when an administrator presses "Get still image" for that camera, so zones can
+be drawn on a real view. The server refuses a picture nobody asked for. A
+still can show people who happened to be in view at that moment, so take it
+when the store is quiet; "Remove still image" in the zone editor deletes it.
 
 Track labels look like `CAM1-Lab12cd-T7`. They restart with every connection
 to the camera and cannot be linked to a person, a face or a phone.
@@ -66,8 +67,8 @@ and to the API over HTTPS. Nothing has to be opened on the store's router.
    `check-camera` opens the stream for a few seconds and prints the picture
    size and frame rate, or a plain reason why it could not connect.
 5. Back in the dashboard the box shows **Online** and each camera **Live**
-   within about a minute. The still image arrives by itself; draw the entry
-   line and zones on it. The box picks up zone changes at its next check-in
+   within about a minute. Press **Get still image** for each camera (it
+   arrives within about a minute) and draw the entry line and zones on it. The box picks up zone changes at its next check-in
    (every 30 seconds) without a restart.
 
 Without Docker: Python 3.11, `pip install -r edge/requirements.txt` plus
