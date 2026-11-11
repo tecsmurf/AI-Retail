@@ -151,7 +151,7 @@ function Checklist({ store }: { store: Store }) {
       </div>
 
       <Card>
-        <CardTitle title="4. Zones and entry line" hint="Draw on a real view of each camera. The still image arrives by itself once the camera is live." />
+        <CardTitle title="4. Zones and entry line" hint="Draw on a real view of each camera. Press “Get still image” above while the camera is live." />
         {s.cameras.length === 0 ? <Note>Add cameras first.</Note> : (
           <ul className="divide-y divide-[var(--border-color)] text-sm">
             {s.cameras.map((c) => {

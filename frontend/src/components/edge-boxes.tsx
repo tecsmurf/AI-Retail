@@ -198,7 +198,7 @@ function CameraRow({ c, device, canManage }: { c: EdgeCamera; device: EdgeDevice
       </div>
       {detail && <p className="mt-0.5 break-words text-xs text-[var(--text-muted)]">{detail}</p>}
       {canManage && c.status === "online" && (
-        <button className="mt-1 text-xs text-purple-300 underline" onClick={() => void refreshStill()}>Refresh still image</button>
+        <button className="mt-1 text-xs text-purple-300 underline" onClick={() => void refreshStill()}>Get still image</button>
       )}
       {note && <p className="mt-1 text-xs text-[var(--text-secondary)]">{note}</p>}
     </li>

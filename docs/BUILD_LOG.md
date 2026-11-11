@@ -92,3 +92,11 @@ Continues `15_BUILD_LOG.md`, which covers the v1 demo build.
 * A Reports page with the downloads and a one-page summary that prints black
   on white. Checked in a browser: downloaded the daily CSV, saved the summary
   as a PDF. Scheduled email reports are not built; they need an email service.
+
+### Privacy pack and retention
+* Retention job now deletes annotated frames with their recording and blanks
+  old IP addresses in the activity log; admins can remove a camera's still
+  image; a box may only send a still an admin asked for. 3 tests.
+* `docs/privacy/`: data map, entrance sign (English and Hindi), privacy
+  notice, processing agreement template and security answers. Drafts for a
+  lawyer, checked line by line against the code.

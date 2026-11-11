@@ -86,8 +86,14 @@ Where they disagree with the files above, the files above are current.
 People are tracked only as anonymous numbers within one video. Nobody is
 identified, no face recognition is used, and no age or gender is estimated.
 Uploaded footage and job snapshots stay in a private bucket, behind login, and
-videos are deleted after `VIDEO_RETENTION_DAYS` (default 30).
+both are deleted after `VIDEO_RETENTION_DAYS` (default 30). With the in-store
+box, video never leaves the store.
 Never commit CCTV footage to this repository.
+
+Draft documents for a chain's legal and IT teams (data map, entrance sign,
+privacy notice, processing agreement, security answers) are in
+[docs/privacy](docs/privacy/README.md). They are drafts for a lawyer to
+review, not legal advice.
 
 ## Author
 

@@ -182,9 +182,25 @@ Numbering starts at D19 because D18 is used by the website redesign.
 * Live events use their own source (`edge`) and count as real data. Queue
   samples from live streams have no job. Live time is stored as seconds per
   camera and hour, so the dashboard can show how much was actually watched.
-* One still image per camera is sent for drawing zones. It is the only picture
-  that leaves the store; see `EDGE.md` for when.
+* A still image of a camera is sent only when an administrator asks for it, to
+  draw zones on. It is the only picture that leaves the store, and the server
+  refuses one nobody asked for.
 * **Cost:** a PC per store has to run the box, and its CPU limits the number
   of cameras. **Not yet done:** a run against a real recorder.
 * **Undo:** remove `edge/`, the `/api/edge*` routes and migration `0004`; video
   upload keeps working without it.
+
+## D21. Privacy defaults and the draft privacy pack
+
+* Annotated frames made while processing a recording are deleted with the
+  recording (`VIDEO_RETENTION_DAYS`). They show people; the tracks file holds
+  only numbers and is kept.
+* IP addresses in the activity log are blanked after `AUDIT_IP_RETENTION_DAYS`
+  (default 90). The entries stay.
+* A camera's still image can be removed by an admin, is deleted from storage
+  at once, and is served with `no-cache` so a removed image does not linger in
+  a browser.
+* `docs/privacy/` holds drafts for a chain's lawyer and IT team. They describe
+  what the code does and list the open legal questions (lawful basis for
+  shoppers, children, staff, hosting location). **They are not legal advice.**
+* **Not built:** one-step deletion of an organisation, backups, SSO, 2FA.

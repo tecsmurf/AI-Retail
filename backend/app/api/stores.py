@@ -235,14 +235,40 @@ async def put_camera_config(body: CameraConfigIn, request: Request, camera: Came
 
 
 @router.get("/api/cameras/{camera_id}/reference-frame")
-async def get_reference_frame(camera: Camera = Depends(get_camera), _: User = Depends(current_user)):
+async def get_reference_frame(request: Request, camera: Camera = Depends(get_camera), _: User = Depends(current_user)):
     if not camera.reference_frame_key:
         raise HTTPException(404, "No reference frame yet. Process a video from this camera or upload a still image.")
+    # The browser must ask every time, so a removed still disappears at once;
+    # the ETag saves the download while the image is unchanged.
+    etag = f'"{reference_frame_version(camera.reference_frame_key)}"'
+    headers = {"Cache-Control": "private, no-cache", "ETag": etag}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=headers)
     try:
         data = get_storage().get_bytes(camera.reference_frame_key)
     except StorageError:
         raise HTTPException(404, "Reference frame missing from storage")
-    return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=300"})
+    return Response(content=data, media_type="image/jpeg", headers=headers)
+
+
+@router.delete("/api/cameras/{camera_id}/reference-frame", response_model=CameraResponse)
+async def remove_reference_frame(
+    request: Request, camera: Camera = Depends(get_camera), admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete the camera's still image (it can show people). Zones and lines stay."""
+    key = camera.reference_frame_key
+    if not key:
+        raise HTTPException(404, "This camera has no still image")
+    try:
+        get_storage().delete(key)
+    except Exception as exc:  # noqa: BLE001 - tell the admin the picture is still there
+        logger.warning("reference_frame_delete_failed", key=key, error=type(exc).__name__)
+        raise HTTPException(502, "The image could not be deleted from storage. Try again.")
+    set_reference_frame(camera, None)
+    audit.record(db, "camera.reference_frame_removed", user=admin, target_type="camera", target_id=camera.id,
+                 details={"camera_code": camera.camera_code}, request=request)
+    return camera_response(camera)
 
 
 @router.post("/api/cameras/{camera_id}/reference-frame", response_model=CameraResponse)

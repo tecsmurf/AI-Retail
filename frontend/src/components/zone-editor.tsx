@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ImageUp, Plus, Trash2, Undo2 } from "lucide-react";
+import { ImageOff, ImageUp, Plus, Trash2, Undo2 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Camera, CameraConfig, EntryLine, Point, ZoneType } from "@/lib/types";
 import { ZONE_TYPES } from "@/lib/types";
@@ -34,10 +34,9 @@ export function ZoneEditor({ camera, onSaved }: { camera: Camera; onSaved: (c: C
   const [error, setError] = useState<unknown>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [imgVersion, setImgVersion] = useState(0);
-  const [uploaded, setUploaded] = useState(false);
-  // The still can also arrive from the in-store box while this editor is open.
-  const hasFrame = camera.has_reference_frame || uploaded;
+  // The still can also arrive from the in-store box while this editor is open,
+  // so it always follows the camera record.
+  const hasFrame = camera.has_reference_frame;
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<{ zone: number; vertex: number } | null>(null);
   const allowLine = camera.camera_type === "entrance" || camera.camera_type === "other";
@@ -127,9 +126,16 @@ export function ZoneEditor({ camera, onSaved }: { camera: Camera; onSaved: (c: C
     const form = new FormData();
     form.append("file", file);
     try {
-      await api(`/api/cameras/${camera.id}/reference-frame`, { method: "POST", body: form });
-      setUploaded(true);
-      setImgVersion((v) => v + 1);
+      onSaved(await api<Camera>(`/api/cameras/${camera.id}/reference-frame`, { method: "POST", body: form }));
+    } catch (e) {
+      setError(e);
+    }
+  }
+
+  async function removeFrame() {
+    if (!window.confirm("Remove this camera's still image? Zones and the entry line stay as they are.")) return;
+    try {
+      onSaved(await api<Camera>(`/api/cameras/${camera.id}/reference-frame`, { method: "DELETE" }));
     } catch (e) {
       setError(e);
     }
@@ -146,12 +152,12 @@ export function ZoneEditor({ camera, onSaved }: { camera: Camera; onSaved: (c: C
       <div className="relative w-full overflow-hidden rounded-xl border border-[var(--border-color)] bg-black" style={{ aspectRatio: aspect }}>
         {hasFrame ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/api/cameras/${camera.id}/reference-frame?v=${camera.reference_frame_version ?? ""}-${imgVersion}`} alt={`Reference frame for ${camera.camera_code}`}
+          <img src={`/api/cameras/${camera.id}/reference-frame?v=${camera.reference_frame_version ?? ""}`} alt={`Reference frame for ${camera.camera_code}`}
             className="absolute inset-0 h-full w-full object-fill select-none" draggable={false} />
         ) : (
           <div className="absolute inset-0 grid place-items-center p-6 text-center text-xs text-[var(--text-muted)]">
-            No still image yet. It arrives by itself once this camera is live through the store&apos;s box or after one
-            recording is processed. You can also upload a still image.
+            No still image yet. Press &ldquo;Get still image&rdquo; under Live cameras while this camera is live, process
+            one recording from it, or upload a still image.
           </div>
         )}
         <svg ref={svgRef} viewBox="0 0 1 1" preserveAspectRatio="none"
@@ -195,6 +201,11 @@ export function ZoneEditor({ camera, onSaved }: { camera: Camera; onSaved: (c: C
           <ImageUp className="h-4 w-4" /> Upload still image
           <input type="file" accept="image/jpeg,image/png" className="sr-only" onChange={(e) => e.target.files?.[0] && void uploadFrame(e.target.files[0])} />
         </label>
+        {hasFrame && (
+          <Button variant="ghost" onClick={() => void removeFrame()} title="Deletes the picture from storage. It can show people.">
+            <ImageOff className="h-4 w-4" /> Remove still image
+          </Button>
+        )}
       </div>
 
       {allowLine && line && (
