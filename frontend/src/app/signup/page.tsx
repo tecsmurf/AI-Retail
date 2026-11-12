@@ -39,7 +39,7 @@ export default function SignupPage() {
     <div className="grid min-h-dvh place-items-center px-4 py-8">
       <form onSubmit={submit} className="card w-full max-w-sm space-y-4 p-6">
         <div>
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-purple-600 font-bold text-white">P</div>
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-purple-600 font-bold text-white">F</div>
           <h1 className="mt-4 text-xl font-semibold">Create your company account</h1>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">
             You become the admin. Add your stores and cameras next, then invite your store managers.
@@ -68,7 +68,7 @@ export default function SignupPage() {
               {busy ? "Creating account…" : "Create account"}
             </Button>
             <p className="text-xs text-[var(--text-muted)]">
-              Your company&apos;s data is visible only to people you add. PurpleSol counts people anonymously and does not recognise faces.
+              Your company&apos;s data is visible only to people you add. Footrail counts people anonymously and does not recognise faces.
             </p>
           </>
         )}

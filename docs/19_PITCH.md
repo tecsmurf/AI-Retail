@@ -1,13 +1,13 @@
 # Pitch
 
 ## One-Liner
-PurpleSol turns your existing CCTV cameras into a Google Analytics dashboard for your physical retail store.
+Footrail turns your existing CCTV cameras into a Google Analytics dashboard for your physical retail store.
 
 ## Problem (30 seconds)
 Retailers spend millions on CCTV but only use it for security. Meanwhile, they have zero visibility into what happens between a customer walking in and making a purchase. They can't answer: which zones attract attention? Which layouts drive sales? Where are customers dropping off?
 
 ## Solution (30 seconds)
-PurpleSol processes your existing CCTV footage using AI (YOLO11 + ByteTrack) to detect, track, and analyze customer behavior in real-time. It generates business events — zone visits, dwell times, journey paths — and presents them in a beautiful analytics dashboard.
+Footrail processes your existing CCTV footage using AI (YOLO11 + ByteTrack) to detect, track, and analyze customer behavior in real-time. It generates business events — zone visits, dwell times, journey paths — and presents them in a beautiful analytics dashboard.
 
 ## Demo Highlights (60 seconds)
 1. **Dashboard** — 247 visitors today, 23.4% conversion, ₹48,750 revenue

@@ -107,3 +107,9 @@ Continues `15_BUILD_LOG.md`, which covers the v1 demo build.
   stores. 4 tests, including that a new company sees nothing of another.
 * Walked through in a phone-sized browser: sign up, land on "Set up a store",
   create the first store, open the account page.
+
+### Rename to Footrail
+* Display name changed from PurpleSol to Footrail everywhere a person reads
+  it; technical identifiers kept (D23). Checked with a search of the
+  repository and a browser pass over the login, sign-up, overview and report
+  pages.

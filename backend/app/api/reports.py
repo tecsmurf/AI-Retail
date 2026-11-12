@@ -76,7 +76,7 @@ async def stores_csv(
                  details={"start": rng["start"], "end": rng["end"], "stores": len(rows)}, request=request)
     notes = [f"Dates {rng['start']} to {rng['end']}, each store in its own time zone. Sources: {','.join(body['data'])}.",
              "Empty cells are not measured (for example no POS data), not zero.", *body["notes"][1:]]
-    return _csv(f"purplesol-stores-{rng['start']}-{rng['end']}.csv", header, rows, notes)
+    return _csv(f"footrail-stores-{rng['start']}-{rng['end']}.csv", header, rows, notes)
 
 
 @router.get("/{store_id}/daily.csv")
@@ -115,7 +115,7 @@ async def daily_csv(
              "Minutes of uploaded video and live camera time show how much footage stands behind each day. "
              "A day with no footage and no events has empty counts.",
              "Empty cells are not measured, not zero. Conversion = POS transactions / entries (an estimate)."]
-    return _csv(f"purplesol-{_safe(store.store_code)}-daily-{tr.start_date}-{tr.end_date}.csv", header, rows, notes)
+    return _csv(f"footrail-{_safe(store.store_code)}-daily-{tr.start_date}-{tr.end_date}.csv", header, rows, notes)
 
 
 @router.get("/{store_id}/zones.csv")
@@ -135,4 +135,4 @@ async def zones_csv(
                  details={"report": "zones", "start": tr.start_date.isoformat(), "end": tr.end_date.isoformat()}, request=request)
     notes = [f"{store.name}, {tr.start_date} to {tr.end_date}, time zone {store.timezone}. Sources: {','.join(sources)}.",
              "A visit is one anonymous track staying in the zone; tracks are not linked across cameras."]
-    return _csv(f"purplesol-{_safe(store.store_code)}-zones-{tr.start_date}-{tr.end_date}.csv", header, rows, notes)
+    return _csv(f"footrail-{_safe(store.store_code)}-zones-{tr.start_date}-{tr.end_date}.csv", header, rows, notes)

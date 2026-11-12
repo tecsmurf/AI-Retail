@@ -7,7 +7,7 @@ import "./globals.css";
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
-  title: "PurpleSol",
+  title: "Footrail",
   description: "Anonymous retail analytics from existing CCTV: footfall, zones, dwell, queues and journeys.",
   robots: { index: false, follow: false },
 };

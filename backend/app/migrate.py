@@ -5,7 +5,7 @@ Usage::
     python -m app.migrate            # upgrade to the latest schema
     python -m app.migrate --check    # exit 1 if the database is not at head
 
-A database created by PurpleSol v1 (tables exist, no ``alembic_version``) is
+A database created by Footrail v1 (tables exist, no ``alembic_version``) is
 stamped at the v1 baseline first, so the upgrade preserves its data. Nothing
 here drops or truncates data.
 """

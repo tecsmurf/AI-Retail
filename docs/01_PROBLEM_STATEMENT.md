@@ -33,5 +33,5 @@ Physical retail stores generate billions in revenue globally, yet most retailers
 | Infrared counters | Entry/exit only, no zone intelligence |
 | Traditional BI tools | No spatial/behavioral data |
 
-### PurpleSol's Approach
+### Footrail's Approach
 Leverage **existing CCTV infrastructure** (no new hardware) with AI-powered computer vision to generate the missing behavioral intelligence layer.

@@ -9,7 +9,7 @@
 cd "c:\Users\adity\OneDrive\Desktop\purple sol"
 git init
 git add .
-git commit -m "PurpleSol v1.0 - AI Retail Intelligence Platform"
+git commit -m "Footrail v1.0 - AI Retail Intelligence Platform"
 ```
 
 ### Step 2: Create GitHub Repository

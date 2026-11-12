@@ -1,6 +1,6 @@
 """Baseline: the v1 schema exactly as ``Base.metadata.create_all`` produced it.
 
-Databases created by PurpleSol v1 (which called create_all at startup and had
+Databases created by Footrail v1 (which called create_all at startup and had
 no Alembic history) are *stamped* at this revision by ``python -m app.migrate``
 and then upgraded, so their data is preserved.
 

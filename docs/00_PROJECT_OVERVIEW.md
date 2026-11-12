@@ -1,7 +1,7 @@
-# PurpleSol — Project Overview
+# Footrail — Project Overview
 
 ## Vision
-PurpleSol is an AI Retail Intelligence Platform that transforms CCTV footage into real-time retail analytics and customer journey intelligence. Think "Google Analytics for Physical Retail Stores."
+Footrail is an AI Retail Intelligence Platform that transforms CCTV footage into real-time retail analytics and customer journey intelligence. Think "Google Analytics for Physical Retail Stores."
 
 ## Problem
 Retailers know what customers purchase but lack visibility into pre-purchase behavior:

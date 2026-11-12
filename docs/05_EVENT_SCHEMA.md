@@ -1,7 +1,7 @@
 # Event Schema
 
 ## Philosophy
-PurpleSol is event-driven. Raw CV detections are never stored directly. Every detection is converted into a **business event** with semantic meaning.
+Footrail is event-driven. Raw CV detections are never stored directly. Every detection is converted into a **business event** with semantic meaning.
 
 ## Core Events
 

@@ -1,7 +1,7 @@
 # CV validation
 
 Status: **validated on public sample clips only.** The pipeline has not yet been
-measured on PurpleSol's own store footage, so none of the numbers below should be
+measured on Footrail's own store footage, so none of the numbers below should be
 read as store accuracy. Re-run the same procedure on store clips before relying on
 footfall figures.
 
@@ -187,7 +187,7 @@ compare on that store's clips before switching.
 
 ## Not yet measured
 
-* Accuracy on PurpleSol's own CCTV clips (8 clips, about 775 MB). They are on the
+* Accuracy on Footrail's own CCTV clips (8 clips, about 775 MB). They are on the
   owner's PC, which was offline during this work. When it is reachable, add each
   clip and its camera layout to a private ground-truth file (do not commit the
   footage) and run `app.cv.evaluate` on it.

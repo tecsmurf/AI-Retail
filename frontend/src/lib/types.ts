@@ -1,4 +1,4 @@
-/** Response shapes of the PurpleSol API (see backend/app/api). */
+/** Response shapes of the Footrail API (see backend/app/api). */
 
 export type Role = "admin" | "viewer" | "regional_manager" | "store_manager";
 

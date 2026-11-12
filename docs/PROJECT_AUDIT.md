@@ -6,7 +6,7 @@ false numbers; **high** = breaks under real use; **medium** = quality or risk.
 
 ## Summary
 
-PurpleSol on `main` was a well-written demo, not a working product. The
+Footrail on `main` was a well-written demo, not a working product. The
 dashboard showed hardcoded and random numbers, the API could not produce real
 metrics, the backend image could not be built, nothing required a login, and the
 computer-vision counts were systematically inflated. None of this was visible

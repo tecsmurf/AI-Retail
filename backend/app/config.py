@@ -1,4 +1,4 @@
-"""PurpleSol Backend Configuration.
+"""Footrail Backend Configuration.
 
 All settings come from environment variables (or a local ``.env`` file in
 development). Production refuses to start with insecure defaults; see
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     )
 
     # ── Application ──────────────────────────────────────────────
-    app_name: str = "PurpleSol"
+    app_name: str = "Footrail"
     app_version: str = "2.0.0"
     app_env: str = Field(default="development", alias="APP_ENV")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")

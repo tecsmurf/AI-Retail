@@ -40,8 +40,8 @@ function LoginForm() {
   return (
     <form onSubmit={submit} className="card w-full max-w-sm space-y-4 p-6">
       <div>
-        <div className="grid h-10 w-10 place-items-center rounded-xl bg-purple-600 font-bold text-white">P</div>
-        <h1 className="mt-4 text-xl font-semibold">Sign in to PurpleSol</h1>
+        <div className="grid h-10 w-10 place-items-center rounded-xl bg-purple-600 font-bold text-white">F</div>
+        <h1 className="mt-4 text-xl font-semibold">Sign in to Footrail</h1>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
           {signupOn ? "Store teams get their account from their company's admin." : "Accounts are created by an administrator."}
         </p>
@@ -60,7 +60,7 @@ function LoginForm() {
       </Button>
       {signupOn && (
         <p className="text-center text-sm text-[var(--text-secondary)]">
-          New to PurpleSol? <Link href="/signup" className="text-purple-300 underline">Create a company account</Link>
+          New to Footrail? <Link href="/signup" className="text-purple-300 underline">Create a company account</Link>
         </p>
       )}
     </form>

@@ -1,4 +1,4 @@
-# Railway service: PurpleSol API. Set this file as the service's config path.
+# Railway service: Footrail API. Set this file as the service's config path.
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"

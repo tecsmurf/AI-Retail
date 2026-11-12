@@ -49,8 +49,8 @@ function isActive(pathname: string, href: string) {
 function Brand() {
   return (
     <Link href={OVERVIEW_PATH} className="flex items-center gap-2">
-      <span className="grid h-8 w-8 place-items-center rounded-lg bg-purple-600 text-sm font-bold text-white">P</span>
-      <span className="font-semibold tracking-tight">PurpleSol</span>
+      <span className="grid h-8 w-8 place-items-center rounded-lg bg-purple-600 text-sm font-bold text-white">F</span>
+      <span className="font-semibold tracking-tight">Footrail</span>
     </Link>
   );
 }
