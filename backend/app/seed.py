@@ -152,7 +152,7 @@ async def run(sample: bool, legacy: bool) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Seed PurpleSol reference data (idempotent)")
+    parser = argparse.ArgumentParser(description="Seed Footrail reference data (idempotent)")
     parser.add_argument("--sample", action="store_true", help="import the bundled sample events and POS CSV")
     parser.add_argument("--legacy", action="store_true", help="import v1 cv_events.jsonl as legacy_cv")
     args = parser.parse_args()

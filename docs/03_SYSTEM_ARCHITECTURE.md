@@ -2,7 +2,7 @@
 
 ## Overview
 
-PurpleSol uses a modular, event-driven architecture designed for simplicity and scalability.
+Footrail uses a modular, event-driven architecture designed for simplicity and scalability.
 
 ```
 ┌──────────────────┐

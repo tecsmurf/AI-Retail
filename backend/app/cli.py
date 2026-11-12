@@ -84,7 +84,7 @@ async def reset_password(email: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="PurpleSol admin commands")
+    parser = argparse.ArgumentParser(description="Footrail admin commands")
     sub = parser.add_subparsers(dest="cmd", required=True)
     o = sub.add_parser("create-org", help="add a customer organisation (chain)")
     o.add_argument("name")

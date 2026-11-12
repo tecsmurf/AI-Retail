@@ -1,5 +1,5 @@
 /**
- * PurpleSol API client.
+ * Footrail API client.
  *
  * The browser only talks to its own origin: Next.js rewrites /api/* to the
  * backend (API_ORIGIN, see next.config.ts), so the session cookie is
@@ -36,7 +36,7 @@ function detailMessage(body: unknown, status: number): string {
         .map((e) => (e && typeof e === "object" && "msg" in e ? String((e as { msg: unknown }).msg) : String(e)))
         .join("; ");
   }
-  if (status === 0) return "Cannot reach the PurpleSol API";
+  if (status === 0) return "Cannot reach the Footrail API";
   return `Request failed (${status})`;
 }
 
@@ -65,7 +65,7 @@ export async function api<T>(
     });
   } catch (e) {
     if ((e as Error).name === "AbortError") throw e;
-    throw new ApiError(0, "Cannot reach the PurpleSol API. Check your connection.");
+    throw new ApiError(0, "Cannot reach the Footrail API. Check your connection.");
   }
   if (res.status === 204) return undefined as T;
   const text = await res.text();

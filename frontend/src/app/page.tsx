@@ -23,7 +23,7 @@ export default function OverviewPage() {
       <>
         <PageHeader title="Overview" />
         {isAdmin ? (
-          <Empty title="Welcome to PurpleSol">
+          <Empty title="Welcome to Footrail">
             Start by adding your first store and its cameras: <Link className="text-purple-300 underline" href="/onboarding">Set up a store</Link>.
           </Empty>
         ) : (

@@ -1,4 +1,4 @@
-# Using and changing PurpleSol from a phone
+# Using and changing Footrail from a phone
 
 The goal: run the store analytics, upload footage, and make code changes with
 your laptop switched off. Two pieces make that possible.

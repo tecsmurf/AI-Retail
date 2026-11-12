@@ -83,7 +83,7 @@ function Summary({ o, storeName, city }: { o: Overview; storeName: string; city:
   return (
     <article className="card p-5 print:border-0 print:bg-white print:p-0 print:text-black">
       <header className="mb-4 border-b border-[var(--border-color)] pb-3 print:border-gray-300">
-        <div className="text-xs uppercase tracking-wide text-[var(--text-muted)] print:text-gray-500">PurpleSol store report</div>
+        <div className="text-xs uppercase tracking-wide text-[var(--text-muted)] print:text-gray-500">Footrail store report</div>
         <h1 className="text-xl font-semibold">{storeName}{city ? `, ${city}` : ""}</h1>
         <p className="text-sm text-[var(--text-secondary)] print:text-gray-700">
           {o.range.start === o.range.end ? fmtDay(o.range.start) : `${fmtDay(o.range.start)} to ${fmtDay(o.range.end)}`} · store time ({o.range.timezone})

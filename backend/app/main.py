@@ -1,4 +1,4 @@
-"""PurpleSol API application."""
+"""Footrail API application."""
 
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="PurpleSol API",
+    title="Footrail API",
     description="Anonymous retail analytics from existing CCTV footage.",
     version=settings.app_version,
     lifespan=lifespan,
@@ -119,4 +119,4 @@ for r in (system_router, auth_router, users_router, org_router, stores_router, e
 
 @app.get("/", include_in_schema=False)
 async def root():
-    return {"name": "PurpleSol API", "version": settings.app_version, "health": "/health/ready"}
+    return {"name": "Footrail API", "version": settings.app_version, "health": "/health/ready"}

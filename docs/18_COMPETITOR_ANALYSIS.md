@@ -2,7 +2,7 @@
 
 ## Market Landscape
 
-| Solution | Approach | Limitations | PurpleSol Advantage |
+| Solution | Approach | Limitations | Footrail Advantage |
 |----------|----------|-------------|---------------------|
 | **RetailNext** | Dedicated hardware sensors | Expensive ($$$), proprietary | Uses existing CCTV |
 | **Sensormatic** | Infrared people counters | Entry/exit only | Full journey tracking |
@@ -10,7 +10,7 @@
 | **V-Count** | 3D stereo cameras | New hardware required | Software-only solution |
 | **Kepler Analytics** | WiFi fingerprinting | Privacy concerns, inaccurate | Anonymous CV tracking |
 
-## PurpleSol Competitive Advantages
+## Footrail Competitive Advantages
 
 1. **Zero new hardware** — Works with existing CCTV
 2. **Full journey tracking** — Entry to exit path reconstruction

@@ -216,3 +216,18 @@ Numbering starts at D19 because D18 is used by the website redesign.
   company's admin on the Team page, or by the operator with the CLI. Open
   sign-up also lets strangers use storage and worker time; the operator
   decides whether to leave it on.
+
+## D23. The product is called Footrail
+
+* The product was renamed from PurpleSol to Footrail in November 2026. Every
+  name a person reads changed: the app, page titles, the logo letter, report
+  file names, the README and the documents.
+* Technical names that deployed systems or scripts depend on did **not**
+  change: the `X-PurpleSol-CSRF` and `X-PurpleSol-Org` headers, the
+  `purplesol_session` cookie, the `purplesol_edge` package and
+  `purplesol-*` image names, database and bucket names in the examples, and
+  the GitHub repository. Renaming them would sign every user out and break
+  paired boxes and scripts for no visible gain. They can be changed later in
+  one planned step.
+* No web address is written into the code. A domain for the new name has not
+  been bought.

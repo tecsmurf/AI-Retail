@@ -2,7 +2,7 @@
 
 ## Industry: Beauty & Personal Care Retail
 
-PurpleSol is built for **Purplle**, one of India's leading beauty and personal care platforms, operating physical retail stores across Mumbai.
+Footrail is built for **Purplle**, one of India's leading beauty and personal care platforms, operating physical retail stores across Mumbai.
 
 ## Stores
 
