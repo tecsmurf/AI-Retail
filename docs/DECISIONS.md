@@ -154,3 +154,89 @@ Format: decision, why, what it costs, how to undo.
   created event sender) before loading the model, so store deployments make no
   calls to third parties. Found during the 11 Nov 2026 end-to-end test
   (docs/TEST_REPORT_2026-11-11.md).
+
+# Decisions (chain product, November 2026)
+
+The open website redesign pull request also adds a decision numbered D18.
+Whichever merges second takes the next free number.
+
+## D19. Organisations, regions and four roles
+
+* Every user, store and POS row belongs to one organisation. Stores can sit in
+  a region. Roles: HQ admin, HQ viewer (both see every store), regional manager
+  and store manager (see only the regions and stores they were given).
+* A resource outside the caller's scope answers 404, not 403, so its existence
+  is not revealed. Scoping lives in one place (`app/access.py`).
+* Existing data moves into a "Default organisation" in migration `0003`, so a
+  v2 database upgrades in place. Store codes are unique per organisation.
+* Email addresses stay unique across organisations (one login, one
+  organisation). **Cost:** a consultant working for two chains needs two emails.
+* Every change to people, stores, cameras, videos and boxes writes an audit
+  row in the same transaction as the change.
+* The ingest API key can target an organisation with the `X-PurpleSol-Org`
+  header; without it events go to the default organisation as before.
+* Request metrics (`/api/system/metrics`) are for the operator only (admins of
+  the default organisation), because they describe the whole service.
+
+## D20. Live cameras through a box in the store, not through the cloud
+
+* **Decision:** a small program on a store PC reads the recorder's streams,
+  runs the same tracking code as the video worker and sends events. The cloud
+  never connects into the store and never receives video.
+* **Why:** store recorders sit behind NAT; opening ports or uploading
+  continuous video is what chains refuse. It also keeps recorder passwords out
+  of our database: stream addresses live only in the box's `edge.json`.
+* A box is paired with a single-use code and then uses a token of which only
+  the hash is stored. Replacing or removing a box cuts the old one off at once.
+* Live events use their own source (`edge`) and count as real data. Queue
+  samples from live streams have no job. Live time is stored as seconds per
+  camera and hour, so the dashboard can show how much was actually watched.
+* A still image of a camera is sent only when an administrator asks for it, to
+  draw zones on. It is the only picture that leaves the store, and the server
+  refuses one nobody asked for.
+* **Cost:** a PC per store has to run the box, and its CPU limits the number
+  of cameras. **Not yet done:** a run against a real recorder.
+* **Undo:** remove `edge/`, the `/api/edge*` routes and migration `0004`; video
+  upload keeps working without it.
+
+## D21. Privacy defaults and the draft privacy pack
+
+* Annotated frames made while processing a recording are deleted with the
+  recording (`VIDEO_RETENTION_DAYS`). They show people; the tracks file holds
+  only numbers and is kept.
+* IP addresses in the activity log are blanked after `AUDIT_IP_RETENTION_DAYS`
+  (default 90). The entries stay.
+* A camera's still image can be removed by an admin, is deleted from storage
+  at once, and is served with `no-cache` so a removed image does not linger in
+  a browser.
+* `docs/privacy/` holds drafts for a chain's lawyer and IT team. They describe
+  what the code does and list the open legal questions (lawful basis for
+  shoppers, children, staff, hosting location). **They are not legal advice.**
+* **Not built:** one-step deletion of an organisation, backups, SSO, 2FA.
+
+## D22. Self-service sign-up
+
+* `POST /api/auth/signup` creates a new organisation and its first admin and
+  signs them in. The new company starts empty and cannot see any other
+  company. Sign-up is limited per IP address and can be turned off with
+  `SIGNUP_ENABLED=false`.
+* **Cost:** there is no email verification and no password reset by email,
+  because no email service is connected. A forgotten password is reset by the
+  company's admin on the Team page, or by the operator with the CLI. Open
+  sign-up also lets strangers use storage and worker time; the operator
+  decides whether to leave it on.
+
+## D23. The product is called Footrail
+
+* The product was renamed from PurpleSol to Footrail in November 2026. Every
+  name a person reads changed: the app, page titles, the logo letter, report
+  file names, the README and the documents.
+* Technical names that deployed systems or scripts depend on did **not**
+  change: the `X-PurpleSol-CSRF` and `X-PurpleSol-Org` headers, the
+  `purplesol_session` cookie, the `purplesol_edge` package and
+  `purplesol-*` image names, database and bucket names in the examples, and
+  the GitHub repository. Renaming them would sign every user out and break
+  paired boxes and scripts for no visible gain. They can be changed later in
+  one planned step.
+* No web address is written into the code. A domain for the new name has not
+  been bought.

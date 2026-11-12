@@ -191,7 +191,7 @@ async def demographics(store: Store = Depends(get_store), _: User = Depends(curr
     in the pipeline. Returned explicitly so clients do not invent values."""
     return {
         "available": False,
-        "reason": "Demographic estimation is not implemented or validated. PurpleSol reports anonymous aggregate movement only.",
+        "reason": "Demographic estimation is not implemented or validated. Footrail reports anonymous aggregate movement only.",
     }
 
 

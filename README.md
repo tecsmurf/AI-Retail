@@ -1,8 +1,12 @@
-# PurpleSol: retail analytics from existing CCTV
+# Footrail: retail analytics from existing CCTV
 
 > Google Analytics for physical stores. Anonymous footfall, zone visits, dwell
 > time, queues and POS correlation from the cameras a store already has. No
 > facial recognition and no demographics.
+>
+> Footrail was called PurpleSol until November 2026. Some technical names
+> (headers, the session cookie, image names, this repository) still use the
+> old name; see [D23](docs/DECISIONS.md).
 
 **Status (October 2026):** v2 works end to end on a local stack and in CI, and
 has been validated on public test clips. It is **not deployed yet** and has
@@ -70,7 +74,8 @@ visitor and entry counts correct on all 3 counting clips. Method and limits:
 | [BUILD_SUMMARY](docs/BUILD_SUMMARY.md) | What works, with evidence; what is blocked; risks |
 | [PROJECT_AUDIT](docs/PROJECT_AUDIT.md) | Problems found in v1 and how each was fixed |
 | [DEPLOYMENT](docs/DEPLOYMENT.md) | Neon, R2, Railway and Vercel, step by step |
-| [REMOTE_ACCESS](docs/REMOTE_ACCESS.md) | Using and changing PurpleSol from a phone |
+| [REMOTE_ACCESS](docs/REMOTE_ACCESS.md) | Using and changing Footrail from a phone |
+| [EDGE](docs/EDGE.md) | Live cameras: the box that runs in the store, what leaves the store, what was tested |
 | [CV_VALIDATION](docs/CV_VALIDATION.md) | Accuracy, speed, setup advice for cameras |
 | [METRICS](docs/METRICS.md) | Definition of every number on the dashboard |
 | [DECISIONS](docs/DECISIONS.md) | Engineering decisions and their trade-offs |
@@ -85,8 +90,14 @@ Where they disagree with the files above, the files above are current.
 People are tracked only as anonymous numbers within one video. Nobody is
 identified, no face recognition is used, and no age or gender is estimated.
 Uploaded footage and job snapshots stay in a private bucket, behind login, and
-videos are deleted after `VIDEO_RETENTION_DAYS` (default 30).
+both are deleted after `VIDEO_RETENTION_DAYS` (default 30). With the in-store
+box, video never leaves the store.
 Never commit CCTV footage to this repository.
+
+Draft documents for a chain's legal and IT teams (data map, entrance sign,
+privacy notice, processing agreement, security answers) are in
+[docs/privacy](docs/privacy/README.md). They are drafts for a lawyer to
+review, not legal advice.
 
 ## Author
 

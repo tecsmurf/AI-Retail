@@ -28,6 +28,7 @@ class StoreCreate(BaseModel):
     city: Optional[str] = Field(None, max_length=100)
     timezone: str = "Asia/Kolkata"
     pos_store_code: Optional[str] = Field(None, max_length=50)
+    region_id: Optional[uuid.UUID] = None
 
     _tz = field_validator("timezone")(_check_tz)
 
@@ -38,6 +39,7 @@ class StoreUpdate(BaseModel):
     city: Optional[str] = Field(None, max_length=100)
     timezone: Optional[str] = None
     pos_store_code: Optional[str] = Field(None, max_length=50)
+    region_id: Optional[uuid.UUID] = None
     is_active: Optional[bool] = None
 
     _tz = field_validator("timezone")(_check_tz)
@@ -53,6 +55,7 @@ class StoreResponse(BaseModel):
     city: Optional[str] = None
     timezone: str
     pos_store_code: Optional[str] = None
+    region_id: Optional[uuid.UUID] = None
     is_active: bool
     camera_count: int = 0
     zone_count: int = 0
@@ -96,6 +99,8 @@ class CameraResponse(BaseModel):
     has_reference_frame: bool = False
     reference_frame_width: Optional[int] = None
     reference_frame_height: Optional[int] = None
+    # Changes whenever the still image changes (cache key for the browser).
+    reference_frame_version: Optional[str] = None
     config_version: int = 1
 
 

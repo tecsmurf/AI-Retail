@@ -61,3 +61,55 @@ Continues `15_BUILD_LOG.md`, which covers the v1 demo build.
 ### Not done
 * Validation on the store's own CCTV clips: the owner's PC was offline.
 * Cloud deployment: no Railway, Neon, R2 or Vercel credentials were provided.
+
+## Chain product (November 2026)
+
+### Chains, roles and audit log
+* Organisations, regions, four roles with per-store and per-region access,
+  team management, an "All stores" comparison page and an activity log.
+* 15 access tests: every analytics, video, POS and setup route was checked from
+  a second organisation and from a store manager of another store.
+
+### In-store box (live cameras)
+* API for pairing, configuration, health, events and still images; the box
+  program in `edge/`; a "Live cameras" card on the setup page.
+* 106 backend tests pass on SQLite and on Postgres; 10 box tests pass.
+* Run by hand against a looped test clip served as a live stream: pairing from
+  the dashboard, live status, still image in the zone editor, events on the
+  overview, reconnect after the stream stopped, catching up after the API was
+  stopped. Not run against a real recorder. Details in `EDGE.md`.
+
+### Store setup checklist
+* `GET /api/stores/{id}/setup-status` and a "Set up a store" page: store,
+  cameras, box, entry line and zones, first real numbers, sales data. A step
+  is done only when the thing exists (sample data does not count as numbers).
+* 3 tests; page checked in a browser at desktop and phone width.
+
+### Reports
+* CSV downloads (`/api/reports/...`): all stores side by side, one store day
+  by day (up to 92 days), and zones. Same definitions and access rules as the
+  dashboard; empty cells mean "not measured"; every export is in the activity log.
+* A Reports page with the downloads and a one-page summary that prints black
+  on white. Checked in a browser: downloaded the daily CSV, saved the summary
+  as a PDF. Scheduled email reports are not built; they need an email service.
+
+### Privacy pack and retention
+* Retention job now deletes annotated frames with their recording and blanks
+  old IP addresses in the activity log; admins can remove a camera's still
+  image; a box may only send a still an admin asked for. 3 tests.
+* `docs/privacy/`: data map, entrance sign (English and Hindi), privacy
+  notice, processing agreement template and security answers. Drafts for a
+  lawyer, checked line by line against the code.
+
+### Sign-up and account page
+* Sign-up page (new company and its admin), Account page (name, company name,
+  password, sign out everywhere), a welcome state for a company with no
+  stores. 4 tests, including that a new company sees nothing of another.
+* Walked through in a phone-sized browser: sign up, land on "Set up a store",
+  create the first store, open the account page.
+
+### Rename to Footrail
+* Display name changed from PurpleSol to Footrail everywhere a person reads
+  it; technical identifiers kept (D23). Checked with a search of the
+  repository and a browser pass over the login, sign-up, overview and report
+  pages.

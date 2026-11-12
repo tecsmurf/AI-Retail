@@ -5,26 +5,22 @@ import uuid
 from datetime import date
 from typing import Optional, Sequence
 
-from fastapi import Depends, HTTPException, Query
+from fastapi import Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.access import Scope, camera_in_scope, get_scope, store_in_scope
 from app.database import get_db
 from app.models.store import Camera, Store
 from app.services.timerange import TimeRange, parse_sources, resolve_range
 
 
-async def get_store(store_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> Store:
-    store = await db.get(Store, store_id)
-    if store is None:
-        raise HTTPException(404, "Store not found")
-    return store
+async def get_store(store_id: uuid.UUID, scope: Scope = Depends(get_scope), db: AsyncSession = Depends(get_db)) -> Store:
+    """The store, if the caller may see it (404 otherwise)."""
+    return await store_in_scope(db, scope, store_id)
 
 
-async def get_camera(camera_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> Camera:
-    camera = await db.get(Camera, camera_id)
-    if camera is None:
-        raise HTTPException(404, "Camera not found")
-    return camera
+async def get_camera(camera_id: uuid.UUID, scope: Scope = Depends(get_scope), db: AsyncSession = Depends(get_db)) -> Camera:
+    return await camera_in_scope(db, scope, camera_id)
 
 
 class RangeParams:
@@ -32,7 +28,7 @@ class RangeParams:
         self,
         start: Optional[date] = Query(None, description="First local date (YYYY-MM-DD), inclusive"),
         end: Optional[date] = Query(None, description="Last local date (YYYY-MM-DD), inclusive"),
-        data: str = Query("real", description="'real' (CV+API), 'all' (adds sample/demo/legacy), or a comma list"),
+        data: str = Query("real", description="'real' (recordings, live boxes, API), 'all' (adds sample/demo/legacy), or a comma list"),
     ) -> None:
         self.start = start
         self.end = end

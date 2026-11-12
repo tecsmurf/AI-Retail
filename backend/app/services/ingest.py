@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import utcnow
 from app.models.event import Event
+from app.models.org import DEFAULT_ORG_ID
 from app.models.store import Store
 from app.services.timerange import store_tz, to_utc_naive
 
@@ -55,7 +56,11 @@ def _lines(path: Path) -> Iterable[str]:
 
 
 async def _store_map(db: AsyncSession) -> Dict[str, Store]:
-    return {s.store_code: s for s in (await db.execute(select(Store))).scalars().all()}
+    # Bundled sample / legacy files belong to the default organisation's reference stores.
+    return {
+        s.store_code: s
+        for s in (await db.execute(select(Store).where(Store.org_id == DEFAULT_ORG_ID))).scalars().all()
+    }
 
 
 def _sample_store_code(d: dict) -> str:

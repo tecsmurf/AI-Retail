@@ -15,16 +15,16 @@ from collections import defaultdict
 from datetime import timedelta
 from typing import Dict
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.access import Scope, get_scope, require_org_admin, scoped_store_ids
 from app.config import settings
 from app.database import engine, get_db, utcnow
-from app.models.jobs import WorkerHeartbeat
-from app.models.user import User
-from app.security import current_user, require_admin
+from app.models.jobs import ProcessingJob, WorkerHeartbeat
+from app.models.org import DEFAULT_ORG_ID
 from app.services import job_service
 from app.storage import get_storage
 
@@ -117,8 +117,19 @@ async def health():
 
 
 @router.get("/api/system/status")
-async def system_status(_: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+async def system_status(scope: Scope = Depends(get_scope), db: AsyncSession = Depends(get_db)):
+    """Workers are shared by every organisation; job ids and queue counts are
+    limited to the stores the caller may see."""
     now = utcnow()
+    store_ids = await scoped_store_ids(db, scope)
+    busy = [w_id for (w_id,) in (await db.execute(
+        select(WorkerHeartbeat.current_job_id).where(WorkerHeartbeat.current_job_id.is_not(None))
+    )).all()]
+    own_jobs = set()
+    if busy and store_ids:
+        own_jobs = {j for (j,) in (await db.execute(
+            select(ProcessingJob.id).where(ProcessingJob.id.in_(busy), ProcessingJob.store_id.in_(store_ids))
+        )).all()}
     stale = timedelta(seconds=max(settings.worker_heartbeat_seconds * 3, 60))
     workers = (await db.execute(select(WorkerHeartbeat).order_by(WorkerHeartbeat.last_seen_at.desc()))).scalars().all()
     return {
@@ -129,12 +140,13 @@ async def system_status(_: User = Depends(current_user), db: AsyncSession = Depe
                 "online": now - w.last_seen_at <= stale,
                 "last_seen_at": w.last_seen_at.isoformat() + "Z",
                 "last_seen_seconds_ago": round((now - w.last_seen_at).total_seconds()),
-                "current_job_id": str(w.current_job_id) if w.current_job_id else None,
+                "busy": w.current_job_id is not None,
+                "current_job_id": str(w.current_job_id) if w.current_job_id in own_jobs else None,
                 "model_loaded": w.model_loaded, "model_error": w.model_error, "device": w.device,
             }
             for w in workers[:20]
         ],
-        "queue": await job_service.queue_stats(db),
+        "queue": await job_service.queue_stats(db, store_ids),
         "config": {
             "storage_backend": settings.storage_backend,
             "database": "postgresql" if settings.database_url.startswith("postgres") else "sqlite",
@@ -142,11 +154,16 @@ async def system_status(_: User = Depends(current_user), db: AsyncSession = Depe
             "analysis_fps": settings.analysis_fps,
             "max_upload_mb": settings.max_upload_bytes // (1024 * 1024),
             "video_retention_days": settings.video_retention_days,
+            "audit_ip_retention_days": settings.audit_ip_retention_days,
+            "session_ttl_hours": settings.session_ttl_hours,
             "job_max_attempts": settings.job_max_attempts,
         },
     }
 
 
 @router.get("/api/system/metrics")
-async def system_metrics(_: User = Depends(require_admin)):
+async def system_metrics(scope: Scope = Depends(require_org_admin)):
+    """Request counters for the whole deployment: operator (default organisation) admins only."""
+    if scope.org_id != DEFAULT_ORG_ID:
+        raise HTTPException(403, "Only the deployment's operator can see request metrics")
     return {"since_seconds": round(time.time() - STARTED), "routes": request_metrics.snapshot()}

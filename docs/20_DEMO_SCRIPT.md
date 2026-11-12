@@ -10,7 +10,7 @@
 ## Demo Flow (5 minutes)
 
 ### Opening (30s)
-> "PurpleSol is Google Analytics for physical retail. We turn your existing CCTV cameras into a business intelligence platform."
+> "Footrail is Google Analytics for physical retail. We turn your existing CCTV cameras into a business intelligence platform."
 
 ### Screen 1: Executive Dashboard (60s)
 **Show**: Full dashboard view

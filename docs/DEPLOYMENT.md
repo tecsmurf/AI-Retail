@@ -112,6 +112,9 @@ Create one Railway project with two services from the GitHub repo.
 |---|---|
 | `API_CORS_ORIGINS` | `https://<your-app>.vercel.app` (comma-separate more) |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | first admin; only used while there are no users. Remove `ADMIN_PASSWORD` after the first login. |
+| `SIGNUP_ENABLED` | `true` lets anyone with the address create a company account from the sign-in page. Set `false` to create customer accounts yourself (see Customers below). |
+| `SIGNUP_RATE_LIMIT_PER_HOUR` | sign-ups allowed per IP address per hour (default 5). |
+| `AUDIT_IP_RETENTION_DAYS` | IP addresses in the activity log are blanked after this many days (default 90). |
 | `INGEST_API_KEY` | optional, only for pushing events from another system |
 
 **Worker only (optional)**: `ANALYSIS_FPS` (default 5), `YOLO_MODEL`,
@@ -164,6 +167,15 @@ cd frontend && npm ci && npm run dev   # dashboard :3000
 * **Migrations** run automatically before each API deploy. Run them by hand with
   `python -m app.migrate`. Back up Neon (branch or dump) before a schema change.
 * **New user / reset password**: `python -m app.cli create-user EMAIL --role viewer`
+* **Customers**: every chain is its own organisation and sees only its own
+  stores. A customer either signs up on the sign-in page (when
+  `SIGNUP_ENABLED=true`) or you create the account:
+  `python -m app.cli create-org "Chain name"` and then
+  `python -m app.cli create-user EMAIL --role admin --org SLUG`. With sign-up
+  on, anyone who knows the address can create an account and upload
+  recordings, which costs storage and worker time: turn it off unless you
+  want open sign-up. There is no email verification yet.
+* **Live cameras**: see [EDGE.md](EDGE.md) for the box that runs in the store.
   or `python -m app.cli reset-password EMAIL` from a Railway shell. A reset signs
   the user out everywhere.
 * **Stuck job**: a job whose worker stops heartbeating is requeued after

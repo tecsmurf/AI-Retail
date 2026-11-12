@@ -44,11 +44,16 @@ jobs:
         run: |
           pip install --index-url https://download.pytorch.org/whl/cpu torch==2.5.1 torchvision==0.20.1
           pip install -r requirements-dev.txt
-      - run: ruff check app tests
+      - run: ruff check app tests ../edge
       - name: Tests
         env:
           TEST_DATABASE_URL: ${{ matrix.db == 'postgres' && 'postgresql+asyncpg://purplesol:purplesol@localhost:5432/purplesol_test' || '' }}
         run: python -m pytest -q
+      - name: In-store box tests
+        if: matrix.db == 'sqlite'
+        env:
+          PYTHONPATH: .:../edge
+        run: python -m pytest ../edge/tests -q
 
   frontend:
     runs-on: ubuntu-latest
@@ -77,5 +82,11 @@ jobs:
         run: docker build -t purplesol-api backend
       - name: Build worker image
         run: docker build -t purplesol-worker -f backend/Dockerfile.worker backend
+      - name: Build in-store box image
+        run: docker build -t purplesol-edge -f edge/Dockerfile .
+      - name: Box image starts and can load the model
+        run: |
+          docker run --rm purplesol-edge --help
+          docker run --rm --entrypoint python purplesol-edge -c "from app.cv.detector import PersonDetector; d=PersonDetector(); d.load(); print(d.model_sha256)"
       - name: Worker image can load the model
         run: docker run --rm --entrypoint python purplesol-worker -c "from app.cv.detector import PersonDetector; d=PersonDetector(); d.load(); print(d.model_sha256)"

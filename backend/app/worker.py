@@ -33,7 +33,7 @@ from datetime import timedelta
 from typing import Dict, List, Optional
 
 import structlog
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, insert, select, update
 
 from app.config import settings
 from app.database import async_session, utcnow
@@ -51,6 +51,7 @@ from app.models.jobs import (
     VideoAsset,
     WorkerHeartbeat,
 )
+from app.models.org import AuditLog
 from app.models.store import Camera
 from app.services import job_service, journey_service
 from app.storage import StorageError, get_storage
@@ -223,8 +224,28 @@ class Worker:
                 log.warning("retention_failed", error=str(exc))
 
     async def apply_retention(self) -> None:
+        await self._expire_videos()
+        await self._blank_audit_ips()
+
+    async def _blank_audit_ips(self) -> None:
+        """Remove IP addresses from audit entries older than
+        AUDIT_IP_RETENTION_DAYS. The entries themselves are kept."""
+        if settings.audit_ip_retention_days <= 0:
+            return
+        cutoff = utcnow() - timedelta(days=settings.audit_ip_retention_days)
+        async with async_session() as db:
+            result = await db.execute(
+                update(AuditLog).where(AuditLog.created_at < cutoff, AuditLog.ip.is_not(None)).values(ip=None)
+            )
+            await db.commit()
+        if result.rowcount:
+            log.info("audit_ips_blanked", entries=result.rowcount)
+
+    async def _expire_videos(self) -> None:
         """Delete source videos older than VIDEO_RETENTION_DAYS that no queued
-        or running job needs. Events, journeys and job records are kept."""
+        or running job needs, together with the annotated frames made from
+        them (they show people). Events, journeys, job records and the tracks
+        file (numbers only) are kept."""
         if settings.video_retention_days <= 0:
             return
         cutoff = utcnow() - timedelta(days=settings.video_retention_days)
@@ -242,9 +263,19 @@ class Worker:
             storage = get_storage()
             for v in videos:
                 storage.delete(v.storage_key)
+                jobs = (await db.execute(select(ProcessingJob).where(ProcessingJob.video_id == v.id))).scalars().all()
+                frames = 0
+                for job in jobs:
+                    arts = dict(job.artifacts or {})
+                    for key in arts.get("snapshots") or []:
+                        storage.delete(key)
+                        frames += 1
+                    if arts.get("snapshots"):
+                        arts["snapshots"] = []
+                        job.artifacts = arts
                 v.status = VIDEO_DELETED
                 v.deleted_at = utcnow()
-                log.info("video_retention_deleted", video_id=str(v.id), store_id=str(v.store_id))
+                log.info("video_retention_deleted", video_id=str(v.id), store_id=str(v.store_id), frames=frames)
             await db.commit()
 
     # ── one job ──────────────────────────────────────────────────

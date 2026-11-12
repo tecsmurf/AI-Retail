@@ -8,7 +8,7 @@ import { Badge, Button, Card, CardTitle, Empty, ErrorState, Loading, Note, PageH
 import { api } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 import type { Journey, JourneyAnalytics, JourneyPage } from "@/lib/types";
-import { SOURCE_LABELS, fmtDuration, fmtInt, fmtTime } from "@/lib/utils";
+import { SOURCE_LABELS, fmtDuration, fmtInt, fmtTime, isRealSource } from "@/lib/utils";
 
 const TYPE_LABELS: Record<string, string> = {
   billing_visit: "Reached counter",
@@ -108,7 +108,7 @@ function JourneyRow({ j, tz }: { j: Journey; tz: string }) {
       <button className="flex w-full flex-wrap items-center gap-2 p-3 text-left" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <span className="font-mono text-xs text-[var(--text-secondary)]">{j.customer_id}</span>
         <Badge>{TYPE_LABELS[j.journey_type] ?? j.journey_type}</Badge>
-        {j.source !== "cv" && <Badge tone="warn">{SOURCE_LABELS[j.source] ?? j.source}</Badge>}
+        {j.source !== "cv" && <Badge tone={isRealSource(j.source) ? "neutral" : "warn"}>{SOURCE_LABELS[j.source] ?? j.source}</Badge>}
         <span className="ml-auto text-xs tabular-nums text-[var(--text-muted)]">
           {fmtTime(j.entry_time, tz)} · {fmtDuration(j.duration_seconds)} · {j.zone_count} zones
         </span>

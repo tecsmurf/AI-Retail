@@ -1,10 +1,10 @@
-# Build summary: PurpleSol v2 rescue
+# Build summary: Footrail v2 rescue
 
 Branch `claude/purplesol-rescue-j7olbe`, pull request #2. Not merged, not deployed.
 
 ## In one paragraph
 
-PurpleSol on `main` was a demo: the dashboard showed invented numbers, the API
+Footrail on `main` was a demo: the dashboard showed invented numbers, the API
 could not compute real revenue or historic footfall, the backend image did not
 build, there was no login, and the CV logic counted every new track as a
 customer entry and every billing-camera sighting as a purchase. v2 replaces

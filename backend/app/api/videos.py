@@ -24,6 +24,7 @@ from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.access import Scope, get_scope, require_uploader, scoped_store_ids, store_in_scope
 from app.config import settings
 from app.cv.pipeline import PipelineConfig
 from app.database import get_db, utcnow
@@ -48,8 +49,8 @@ from app.schemas.jobs import (
     VideoCreated,
     VideoResponse,
 )
-from app.security import client_ip, current_user, rate_limiter, require_admin
-from app.services import job_service
+from app.security import client_ip, rate_limiter
+from app.services import audit, job_service
 from app.storage import StorageError, get_storage, safe_filename
 
 router = APIRouter(tags=["Videos & Jobs"])
@@ -120,8 +121,9 @@ def job_response(job: ProcessingJob, video: Optional[VideoAsset] = None, camera_
 
 
 @router.post("/api/videos", response_model=VideoCreated, status_code=201)
-async def create_video(body: VideoCreate, request: Request, user: User = Depends(require_admin),
+async def create_video(body: VideoCreate, request: Request, scope: Scope = Depends(require_uploader),
                        db: AsyncSession = Depends(get_db)):
+    user = scope.user
     rate_limiter.check(f"upload:{user.id}:{client_ip(request)}", settings.upload_rate_limit_per_hour, 3600)
     ext = os.path.splitext(body.filename)[1].lower()
     if ext not in settings.video_extensions:
@@ -132,7 +134,7 @@ async def create_video(body: VideoCreate, request: Request, user: User = Depends
         raise HTTPException(413, f"File is larger than the {settings.max_upload_bytes // (1024**2)} MB limit")
     store = await db.get(Store, body.store_id)
     camera = await db.get(Camera, body.camera_id)
-    if not store or not camera or camera.store_id != store.id:
+    if not store or not scope.allows(store) or not camera or camera.store_id != store.id:
         raise HTTPException(404, "Store or camera not found (camera must belong to the store)")
     video_id = uuid.uuid4()
     key = f"uploads/{store.id}/{video_id}/{safe_filename(body.filename)}"
@@ -144,6 +146,9 @@ async def create_video(body: VideoCreate, request: Request, user: User = Depends
     )
     db.add(video)
     await db.flush()
+    audit.record(db, "video.create", user=user, target_type="video", target_id=video.id,
+                 details={"store_code": store.store_code, "camera_code": camera.camera_code,
+                          "filename": video.original_filename, "size_bytes": body.size_bytes}, request=request)
     try:
         up = get_storage().presign_upload(key, body.content_type, str(video_id))
     except StorageError as exc:
@@ -155,16 +160,14 @@ async def create_video(body: VideoCreate, request: Request, user: User = Depends
 
 
 @router.put("/api/videos/{video_id}/content", status_code=204)
-async def upload_content(video_id: uuid.UUID, request: Request, user: User = Depends(require_admin),
+async def upload_content(video_id: uuid.UUID, request: Request, scope: Scope = Depends(require_uploader),
                          db: AsyncSession = Depends(get_db)):
     """Upload target when STORAGE_BACKEND=local (development / single host).
     Streams to disk in 1 MB chunks and enforces the declared size."""
     storage = get_storage()
     if storage.name != "local":
         raise HTTPException(400, "Upload directly to object storage using the presigned URL")
-    video = await db.get(VideoAsset, video_id)
-    if not video:
-        raise HTTPException(404, "Video not found")
+    video = await _video(db, scope, video_id)
     if video.status != VIDEO_PENDING:
         raise HTTPException(409, f"Video is already {video.status}")
     limit = min(video.size_bytes or settings.max_upload_bytes, settings.max_upload_bytes)
@@ -187,11 +190,10 @@ async def upload_content(video_id: uuid.UUID, request: Request, user: User = Dep
 
 
 @router.post("/api/videos/{video_id}/complete", response_model=VideoCreated | JobResponse)
-async def complete_upload(video_id: uuid.UUID, body: VideoComplete = VideoComplete(), user: User = Depends(require_admin),
-                          db: AsyncSession = Depends(get_db)):
-    video = await db.get(VideoAsset, video_id)
-    if not video:
-        raise HTTPException(404, "Video not found")
+async def complete_upload(video_id: uuid.UUID, request: Request, body: VideoComplete = VideoComplete(),
+                          scope: Scope = Depends(require_uploader), db: AsyncSession = Depends(get_db)):
+    user = scope.user
+    video = await _video(db, scope, video_id)
     if video.status == VIDEO_PENDING:
         size = get_storage().size(video.storage_key)
         if size is None:
@@ -206,14 +208,17 @@ async def complete_upload(video_id: uuid.UUID, body: VideoComplete = VideoComple
     if body.start_processing:
         overrides = PipelineOverrides(**body.pipeline) if body.pipeline else None
         job = await create_job(db, video, user, overrides)
+        audit.record(db, "job.submit", user=user, target_type="job", target_id=job.id,
+                     details={"video_id": str(video.id), "filename": video.original_filename}, request=request)
         return job_response(job, video)
     return VideoCreated(video=VideoResponse.model_validate(video),
                         upload=UploadInstructions(method="NONE", url="", headers={}, direct_to_storage=False))
 
 
 @router.get("/api/videos", response_model=List[VideoResponse])
-async def list_videos(store_id: uuid.UUID, limit: int = Query(50, ge=1, le=200), _: User = Depends(current_user),
+async def list_videos(store_id: uuid.UUID, limit: int = Query(50, ge=1, le=200), scope: Scope = Depends(get_scope),
                       db: AsyncSession = Depends(get_db)):
+    await store_in_scope(db, scope, store_id)
     rows = await db.execute(
         select(VideoAsset).where(VideoAsset.store_id == store_id).order_by(VideoAsset.created_at.desc()).limit(limit)
     )
@@ -224,14 +229,16 @@ async def list_videos(store_id: uuid.UUID, limit: int = Query(50, ge=1, le=200),
 
 
 @router.post("/api/jobs", response_model=JobResponse, status_code=201)
-async def submit_job(body: JobCreate, request: Request, user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+async def submit_job(body: JobCreate, request: Request, scope: Scope = Depends(require_uploader),
+                     db: AsyncSession = Depends(get_db)):
+    user = scope.user
     rate_limiter.check(f"jobs:{user.id}:{client_ip(request)}", settings.upload_rate_limit_per_hour, 3600)
-    video = await db.get(VideoAsset, body.video_id)
-    if not video:
-        raise HTTPException(404, "Video not found")
+    video = await _video(db, scope, body.video_id)
     if video.status != VIDEO_UPLOADED:
         raise HTTPException(409, f"Video is {video.status}; finish the upload first")
     job = await create_job(db, video, user, body.pipeline, body.allow_duplicate)
+    audit.record(db, "job.submit", user=user, target_type="job", target_id=job.id,
+                 details={"video_id": str(video.id), "filename": video.original_filename}, request=request)
     return job_response(job, video)
 
 
@@ -241,12 +248,15 @@ async def list_jobs(
     status: Optional[str] = None,
     limit: int = Query(25, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    _: User = Depends(current_user),
+    scope: Scope = Depends(get_scope),
     db: AsyncSession = Depends(get_db),
 ):
     q = select(ProcessingJob, VideoAsset).join(VideoAsset, VideoAsset.id == ProcessingJob.video_id)
     if store_id:
+        await store_in_scope(db, scope, store_id)
         q = q.where(ProcessingJob.store_id == store_id)
+    else:
+        q = q.where(ProcessingJob.store_id.in_(await scoped_store_ids(db, scope)))
     if status:
         q = q.where(ProcessingJob.status == status)
     total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar() or 0
@@ -254,32 +264,44 @@ async def list_jobs(
     return JobPage(total=total, items=[job_response(j, v) for j, v in rows])
 
 
-async def _job(db: AsyncSession, job_id: uuid.UUID) -> ProcessingJob:
+async def _job(db: AsyncSession, scope: Scope, job_id: uuid.UUID) -> ProcessingJob:
     job = await db.get(ProcessingJob, job_id)
-    if not job:
+    store = await db.get(Store, job.store_id) if job else None
+    if not job or not store or not scope.allows(store):
         raise HTTPException(404, "Job not found")
     return job
 
 
+async def _video(db: AsyncSession, scope: Scope, video_id: uuid.UUID) -> VideoAsset:
+    video = await db.get(VideoAsset, video_id)
+    store = await db.get(Store, video.store_id) if video else None
+    if not video or not store or not scope.allows(store):
+        raise HTTPException(404, "Video not found")
+    return video
+
+
 @router.get("/api/jobs/{job_id}", response_model=JobResponse)
-async def get_job(job_id: uuid.UUID, _: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    job = await _job(db, job_id)
+async def get_job(job_id: uuid.UUID, scope: Scope = Depends(get_scope), db: AsyncSession = Depends(get_db)):
+    job = await _job(db, scope, job_id)
     return job_response(job, await db.get(VideoAsset, job.video_id))
 
 
 @router.post("/api/jobs/{job_id}/cancel", response_model=JobResponse)
-async def cancel_job(job_id: uuid.UUID, _: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
-    job = await _job(db, job_id)
+async def cancel_job(job_id: uuid.UUID, request: Request, scope: Scope = Depends(require_uploader),
+                     db: AsyncSession = Depends(get_db)):
+    job = await _job(db, scope, job_id)
     try:
         await job_service.request_cancel(db, job)
     except job_service.JobStateError as exc:
         raise HTTPException(409, str(exc))
+    audit.record(db, "job.cancel", user=scope.user, target_type="job", target_id=job.id, request=request)
     return job_response(job, await db.get(VideoAsset, job.video_id))
 
 
 @router.post("/api/jobs/{job_id}/retry", response_model=JobResponse)
-async def retry_job(job_id: uuid.UUID, _: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
-    job = await _job(db, job_id)
+async def retry_job(job_id: uuid.UUID, request: Request, scope: Scope = Depends(require_uploader),
+                    db: AsyncSession = Depends(get_db)):
+    job = await _job(db, scope, job_id)
     video = await db.get(VideoAsset, job.video_id)
     if video.status != VIDEO_UPLOADED:
         raise HTTPException(409, f"The source video is {video.status}; upload it again")
@@ -287,13 +309,14 @@ async def retry_job(job_id: uuid.UUID, _: User = Depends(require_admin), db: Asy
         await job_service.retry(db, job)
     except job_service.JobStateError as exc:
         raise HTTPException(409, str(exc))
+    audit.record(db, "job.retry", user=scope.user, target_type="job", target_id=job.id, request=request)
     return job_response(job, video)
 
 
 @router.get("/api/jobs/{job_id}/artifacts/{name}")
-async def get_artifact(job_id: uuid.UUID, name: str, _: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+async def get_artifact(job_id: uuid.UUID, name: str, scope: Scope = Depends(get_scope), db: AsyncSession = Depends(get_db)):
     """Inspect detections/tracks: annotated snapshots (JPEG) or tracks.jsonl.gz."""
-    job = await _job(db, job_id)
+    job = await _job(db, scope, job_id)
     arts = job.artifacts or {}
     keys = list(arts.get("snapshots", [])) + ([arts["tracks"]] if arts.get("tracks") else [])
     key = next((k for k in keys if k.rsplit("/", 1)[-1] == name), None)

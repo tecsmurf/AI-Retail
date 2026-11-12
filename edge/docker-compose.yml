@@ -1,0 +1,16 @@
+# Run the edge box on a store PC:
+#   1. copy edge.example.json to edge.json and fill in api_url and the camera stream addresses
+#   2. docker compose run --rm edge pair ABCDE-FGHJK      (code from the dashboard)
+#   3. docker compose up -d
+services:
+  edge:
+    build: {context: .., dockerfile: edge/Dockerfile}
+    restart: unless-stopped
+    # The box only makes outgoing connections: to the recorder on the local
+    # network and to the cloud API over HTTPS. No ports are opened.
+    volumes:
+      - ./edge.json:/config/edge.json:ro
+      - edge-state:/data
+
+volumes:
+  edge-state:

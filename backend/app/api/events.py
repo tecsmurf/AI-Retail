@@ -12,12 +12,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.access import Scope, get_scope, store_in_scope
 from app.database import get_db
 from app.models.event import Event
 from app.models.store import Store
-from app.models.user import User
 from app.schemas.event import EventCreate, EventPage, IngestResult
-from app.security import current_user, ingest_principal
+from app.security import IngestPrincipal, ingest_principal
 from app.services.ingest import insert_events
 
 router = APIRouter(prefix="/api/events", tags=["Events"])
@@ -32,11 +32,13 @@ def content_key(e: EventCreate) -> str:
     return "auto-" + hashlib.sha256(raw.encode()).hexdigest()[:40]
 
 
-async def _ingest(db: AsyncSession, events: List[EventCreate]) -> IngestResult:
+async def _ingest(db: AsyncSession, events: List[EventCreate], org_id: uuid.UUID) -> IngestResult:
     codes = {e.store_code for e in events}
     stores = {
         s.store_code: s.id
-        for s in (await db.execute(select(Store).where(Store.store_code.in_(codes)))).scalars().all()
+        for s in (await db.execute(
+            select(Store).where(Store.org_id == org_id, Store.store_code.in_(codes))
+        )).scalars().all()
     }
     rows = []
     errors = []
@@ -63,19 +65,21 @@ async def _ingest(db: AsyncSession, events: List[EventCreate]) -> IngestResult:
 
 
 @router.post("", response_model=IngestResult, status_code=201)
-async def create_event(event: EventCreate, _: str = Depends(ingest_principal), db: AsyncSession = Depends(get_db)):
+async def create_event(event: EventCreate, who: IngestPrincipal = Depends(ingest_principal),
+                       db: AsyncSession = Depends(get_db)):
     """Ingest one event. Idempotent on (store, event_key)."""
-    result = await _ingest(db, [event])
+    result = await _ingest(db, [event], who.org_id)
     if result.errors:
         raise HTTPException(422, result.errors[0])
     return result
 
 
 @router.post("/batch", response_model=IngestResult, status_code=201)
-async def create_batch(events: List[EventCreate], _: str = Depends(ingest_principal), db: AsyncSession = Depends(get_db)):
+async def create_batch(events: List[EventCreate], who: IngestPrincipal = Depends(ingest_principal),
+                       db: AsyncSession = Depends(get_db)):
     if len(events) > MAX_BATCH:
         raise HTTPException(413, f"At most {MAX_BATCH} events per batch")
-    return await _ingest(db, events)
+    return await _ingest(db, events, who.org_id)
 
 
 @router.get("", response_model=EventPage)
@@ -85,14 +89,15 @@ async def list_events(
     customer_id: Optional[str] = Query(None),
     zone_name: Optional[str] = Query(None),
     job_id: Optional[uuid.UUID] = Query(None),
-    source: Optional[str] = Query(None, description="cv, api, sample, demo, legacy_cv"),
+    source: Optional[str] = Query(None, description="cv, edge, api, sample, demo, legacy_cv"),
     start_time: Optional[datetime] = Query(None, description="UTC (or with offset)"),
     end_time: Optional[datetime] = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    _: User = Depends(current_user),
+    scope: Scope = Depends(get_scope),
     db: AsyncSession = Depends(get_db),
 ):
+    await store_in_scope(db, scope, store_id)
     q = select(Event).where(Event.store_id == store_id)
     if event_type:
         q = q.where(Event.event_type == event_type.upper())

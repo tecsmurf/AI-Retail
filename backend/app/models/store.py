@@ -21,6 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base, utcnow
+from app.models.org import DEFAULT_ORG_ID
 
 ZONE_TYPES = ("ENTRANCE", "SHELF", "DISPLAY", "QUEUE", "BILLING", "EXIT", "OTHER")
 CAMERA_TYPES = ("entrance", "zone", "billing", "other")
@@ -30,9 +31,17 @@ class Store(Base):
     """Physical retail store."""
 
     __tablename__ = "stores"
+    # Store codes are unique per organisation, not globally.
+    __table_args__ = (UniqueConstraint("org_id", "store_code", name="uq_stores_org_code"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    store_code: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), index=True, default=DEFAULT_ORG_ID
+    )
+    region_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid, ForeignKey("regions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    store_code: Mapped[str] = mapped_column(String(50), index=True)
     name: Mapped[str] = mapped_column(String(200))
     address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)

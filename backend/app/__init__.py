@@ -1,1 +1,1 @@
-"""PurpleSol Backend Package."""
+"""Footrail Backend Package."""

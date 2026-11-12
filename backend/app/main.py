@@ -1,4 +1,4 @@
-"""PurpleSol API application."""
+"""Footrail API application."""
 
 from __future__ import annotations
 
@@ -14,30 +14,37 @@ from sqlalchemy import func, select
 
 from app.api.analytics import router as analytics_router
 from app.api.auth import router as auth_router
-from app.api.auth import users_router
+from app.api.edge import router as edge_router
 from app.api.events import router as events_router
+from app.api.org import router as org_router
 from app.api.pos import router as pos_router
+from app.api.reports import router as reports_router
+from app.api.setup import router as setup_router
 from app.api.stores import router as stores_router
 from app.api.system import request_metrics
 from app.api.system import router as system_router
+from app.api.users import router as users_router
 from app.api.videos import router as videos_router
 from app.config import settings
 from app.database import async_session, close_db, create_all
 from app.logging_setup import configure_logging
 from app.models.user import ROLE_ADMIN, User
 from app.security import hash_password
+from app.services.orgs import ensure_default_org
 
 configure_logging()
 logger = structlog.get_logger("purplesol.api")
 
 
 async def bootstrap_admin() -> None:
-    """Create the first admin from ADMIN_EMAIL/ADMIN_PASSWORD when no user exists."""
+    """Create the first admin (of the default organisation) from
+    ADMIN_EMAIL/ADMIN_PASSWORD when no user exists."""
     if not (settings.admin_email and settings.admin_password):
         return
     async with async_session() as db:
         if (await db.execute(select(func.count()).select_from(User))).scalar():
             return
+        await ensure_default_org(db)
         db.add(User(email=settings.admin_email.strip().lower(), password_hash=hash_password(settings.admin_password),
                     role=ROLE_ADMIN, is_active=True))
         await db.commit()
@@ -60,7 +67,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="PurpleSol API",
+    title="Footrail API",
     description="Anonymous retail analytics from existing CCTV footage.",
     version=settings.app_version,
     lifespan=lifespan,
@@ -74,7 +81,7 @@ app.add_middleware(
     allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-PurpleSol-CSRF", "X-API-Key", "X-Request-ID"],
+    allow_headers=["Content-Type", "Authorization", "X-PurpleSol-CSRF", "X-PurpleSol-Org", "X-API-Key", "X-Request-ID"],
     expose_headers=["X-Request-ID"],
 )
 
@@ -105,11 +112,11 @@ async def request_context(request: Request, call_next):
     return response
 
 
-for r in (system_router, auth_router, users_router, stores_router, events_router, analytics_router,
-          videos_router, pos_router):
+for r in (system_router, auth_router, users_router, org_router, stores_router, events_router, analytics_router,
+          videos_router, pos_router, edge_router, setup_router, reports_router):
     app.include_router(r)
 
 
 @app.get("/", include_in_schema=False)
 async def root():
-    return {"name": "PurpleSol API", "version": settings.app_version, "health": "/health/ready"}
+    return {"name": "Footrail API", "version": settings.app_version, "health": "/health/ready"}

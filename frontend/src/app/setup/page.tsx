@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDashboard } from "@/components/dashboard";
+import { EdgeBoxes } from "@/components/edge-boxes";
 import { useSession } from "@/components/session";
 import { ZoneEditor } from "@/components/zone-editor";
 import { Badge, Button, Card, CardTitle, Empty, ErrorState, Field, Loading, Note, PageHeader, inputClass } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
-import type { Camera, CameraType, Store } from "@/lib/types";
+import type { Camera, CameraType, Region, Store } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export default function SetupPage() {
@@ -15,8 +16,16 @@ export default function SetupPage() {
   const { isAdmin } = useSession();
   const store = d.store;
   const cams = useResource(store ? `setup-cams:${store.id}` : null, (signal) => api<Camera[]>(`/api/stores/${store!.id}/cameras`, { signal }));
+  const regions = useResource("setup-regions", (signal) => api<{ items: Region[] }>("/api/org/regions", { signal }));
   const [cameraId, setCameraId] = useState<string | null>(null);
   const camera = cams.data?.find((c) => c.id === cameraId) ?? cams.data?.[0];
+
+  useEffect(() => {
+    // Other pages link straight to a camera with /setup#camera=<id>.
+    const m = window.location.hash.match(/^#camera=([0-9a-f-]{36})$/i);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (m) setCameraId(m[1]);
+  }, []);
 
   return (
     <>
@@ -26,7 +35,6 @@ export default function SetupPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="min-w-0 space-y-4">
           <StoresCard />
-          {store && isAdmin && <StoreSettings key={store.id} store={store} onSaved={d.reloadStores} />}
           {store && (
             <Card>
               <CardTitle title="Cameras" hint={store.name} />
@@ -50,6 +58,12 @@ export default function SetupPage() {
               {isAdmin && <AddCamera storeId={store.id} onAdded={(c) => { cams.reload(); setCameraId(c.id); }} />}
             </Card>
           )}
+          {store && <EdgeBoxes key={`edge:${store.id}`} store={store} canManage={isAdmin} onCamerasChanged={cams.reload} />}
+          {store && isAdmin && (
+            <StoreSettings key={store.id} store={store} regions={regions.data?.items ?? []}
+              onSaved={() => { d.reloadStores(); regions.reload(); }} />
+          )}
+          {isAdmin && <RegionsCard regions={regions.data?.items} error={regions.error} reload={regions.reload} />}
         </div>
         <div className="min-w-0 lg:col-span-2">
           {camera ? (
@@ -116,7 +130,8 @@ function StoresCard() {
   );
 }
 
-function StoreSettings({ store, onSaved }: { store: Store; onSaved: () => void }) {
+function StoreSettings({ store, regions, onSaved }: { store: Store; regions: Region[]; onSaved: () => void }) {
+  const [regionId, setRegionId] = useState(store.region_id ?? "");
   const [pos, setPos] = useState(store.pos_store_code ?? "");
   const [tz, setTz] = useState(store.timezone);
   const [error, setError] = useState<unknown>(null);
@@ -127,7 +142,7 @@ function StoreSettings({ store, onSaved }: { store: Store; onSaved: () => void }
     setError(null);
     setMsg(null);
     try {
-      await api(`/api/stores/${store.id}`, { method: "PATCH", json: { pos_store_code: pos || null, timezone: tz } });
+      await api(`/api/stores/${store.id}`, { method: "PATCH", json: { pos_store_code: pos || null, timezone: tz, region_id: regionId || null } });
       setMsg("Saved");
       onSaved();
       unassigned.reload();
@@ -155,6 +170,12 @@ function StoreSettings({ store, onSaved }: { store: Store; onSaved: () => void }
       <CardTitle title="Store settings" hint={store.store_code} />
       <div className="space-y-2">
         <Field label="Time zone" hint="Used for days and hours on every chart."><input className={inputClass} value={tz} onChange={(e) => setTz(e.target.value)} /></Field>
+        <Field label="Region" hint={regions.length ? "Groups stores on the All stores page and for regional managers." : "Add regions below to group stores."}>
+          <select className={inputClass} value={regionId} onChange={(e) => setRegionId(e.target.value)} disabled={regions.length === 0}>
+            <option value="">No region</option>
+            {regions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+        </Field>
         <Field label="POS store code" hint="The store_id value used in your POS export.">
           <input className={inputClass} value={pos} onChange={(e) => setPos(e.target.value)} list="pos-codes" />
           <datalist id="pos-codes">{unassigned.data?.items.map((u) => <option key={u.pos_store_code} value={u.pos_store_code} />)}</datalist>
@@ -172,6 +193,71 @@ function StoreSettings({ store, onSaved }: { store: Store; onSaved: () => void }
         {msg && <p className="text-sm text-emerald-300">{msg}</p>}
         {error !== null && <ErrorState error={error} />}
       </div>
+    </Card>
+  );
+}
+
+/** Regions group stores for the HQ comparison and for regional managers. */
+function RegionsCard({ regions, error, reload }: { regions: Region[] | undefined; error: Error | undefined; reload: () => void }) {
+  const [name, setName] = useState("");
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [failure, setFailure] = useState<unknown>(null);
+
+  async function run(fn: () => Promise<unknown>) {
+    setFailure(null);
+    try {
+      await fn();
+      reload();
+    } catch (e) {
+      setFailure(e);
+    }
+  }
+  const add = () => run(async () => {
+    await api("/api/org/regions", { json: { name } });
+    setName("");
+  });
+  const rename = () => run(async () => {
+    await api(`/api/org/regions/${renaming!.id}`, { method: "PATCH", json: { name: renaming!.name } });
+    setRenaming(null);
+  });
+  const remove = (r: Region) => {
+    const warn = r.store_count ? ` Its ${r.store_count} store(s) are kept and become "No region".` : "";
+    if (window.confirm(`Delete the region "${r.name}"?${warn}`)) void run(() => api(`/api/org/regions/${r.id}`, { method: "DELETE" }));
+  };
+
+  return (
+    <Card>
+      <CardTitle title="Regions" hint="Optional. Group stores by area." />
+      {error && <ErrorState error={error} onRetry={reload} />}
+      {regions && regions.length > 0 && (
+        <ul className="mb-3 divide-y divide-[var(--border-color)] text-sm">
+          {regions.map((r) => (
+            <li key={r.id} className="flex flex-wrap items-center gap-2 py-1.5">
+              {renaming?.id === r.id ? (
+                <>
+                  <input aria-label="Region name" className={cn(inputClass, "flex-1")} value={renaming.name}
+                    onChange={(e) => setRenaming({ id: r.id, name: e.target.value })} />
+                  <Button variant="primary" disabled={!renaming.name.trim()} onClick={() => void rename()}>Save</Button>
+                  <Button variant="ghost" onClick={() => setRenaming(null)}>Cancel</Button>
+                </>
+              ) : (
+                <>
+                  <span className="flex-1 truncate">{r.name}</span>
+                  <span className="text-xs text-[var(--text-muted)]">{r.store_count} store{r.store_count === 1 ? "" : "s"}</span>
+                  <Button variant="ghost" onClick={() => setRenaming({ id: r.id, name: r.name })}>Rename</Button>
+                  <Button variant="ghost" onClick={() => remove(r)}>Delete</Button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex gap-2">
+        <input aria-label="New region name" className={cn(inputClass, "flex-1")} placeholder="e.g. Mumbai West" value={name}
+          onChange={(e) => setName(e.target.value)} />
+        <Button disabled={!name.trim()} onClick={() => void add()}>Add</Button>
+      </div>
+      {failure !== null && <div className="mt-2"><ErrorState error={failure} /></div>}
     </Card>
   );
 }

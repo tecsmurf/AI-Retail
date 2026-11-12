@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import timedelta
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -187,16 +187,18 @@ async def retry(db: AsyncSession, job: ProcessingJob) -> ProcessingJob:
     return job
 
 
-async def queue_stats(db: AsyncSession) -> dict:
-    rows = await db.execute(select(ProcessingJob.status, func.count()).group_by(ProcessingJob.status))
+async def queue_stats(db: AsyncSession, store_ids: Optional[Sequence[uuid.UUID]] = None) -> dict:
+    """Job counts. ``store_ids`` limits them to those stores (None = every store)."""
+    scoped = [ProcessingJob.store_id.in_(list(store_ids))] if store_ids is not None else []
+    rows = await db.execute(select(ProcessingJob.status, func.count()).where(*scoped).group_by(ProcessingJob.status))
     counts = {s: n for s, n in rows.all()}
     oldest = (
-        await db.execute(select(func.min(ProcessingJob.created_at)).where(ProcessingJob.status == JOB_QUEUED))
+        await db.execute(select(func.min(ProcessingJob.created_at)).where(ProcessingJob.status == JOB_QUEUED, *scoped))
     ).scalar()
     since = utcnow() - timedelta(hours=24)
     recent = await db.execute(
         select(ProcessingJob.status, func.count())
-        .where(ProcessingJob.finished_at >= since)
+        .where(ProcessingJob.finished_at >= since, *scoped)
         .group_by(ProcessingJob.status)
     )
     return {

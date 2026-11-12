@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import HTTPException
 
-from app.models.event import REAL_SOURCES
+from app.models.event import EVENT_SOURCES, REAL_SOURCES
 
 MAX_RANGE_DAYS = 366
 
@@ -84,16 +84,16 @@ def resolve_range(
 
 
 def parse_sources(data: str) -> Sequence[str]:
-    """``data=real`` (default): CV + API events only. ``data=all`` also
-    includes the bundled sample, demo and legacy v1 records."""
+    """``data=real`` (default): processed recordings, live edge boxes and API
+    events only. ``data=all`` also includes the bundled sample, demo and
+    legacy v1 records."""
     if data == "real":
         return REAL_SOURCES
     if data == "all":
-        return ("cv", "api", "sample", "demo", "legacy_cv")
+        return EVENT_SOURCES
     parts = tuple(p.strip() for p in data.split(",") if p.strip())
-    allowed = {"cv", "api", "sample", "demo", "legacy_cv"}
-    if not parts or any(p not in allowed for p in parts):
-        raise HTTPException(422, "data must be 'real', 'all', or a comma list of cv,api,sample,demo,legacy_cv")
+    if not parts or any(p not in EVENT_SOURCES for p in parts):
+        raise HTTPException(422, f"data must be 'real', 'all', or a comma list of {','.join(EVENT_SOURCES)}")
     return parts
 
 

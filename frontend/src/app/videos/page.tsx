@@ -14,7 +14,7 @@ const STATUS_TONE = { queued: "neutral", running: "info", completed: "good", fai
 
 export default function VideosPage() {
   const d = useDashboard();
-  const { isAdmin } = useSession();
+  const { canUpload } = useSession();
   const store = d.store;
   const cams = useResource(store ? `cams:${store.id}` : null, (signal) => api<Camera[]>(`/api/stores/${store!.id}/cameras`, { signal }));
   const jobs = useResource(store ? `jobs:${store.id}` : null, (signal) =>
@@ -33,11 +33,11 @@ export default function VideosPage() {
       )}
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="min-w-0 lg:col-span-2">
-          {isAdmin ? (
+          {canUpload ? (
             cams.data ? <UploadCard cameras={cams.data} storeId={store!.id} onQueued={jobs.reload} />
               : cams.error ? <ErrorState error={cams.error} onRetry={cams.reload} /> : <Loading />
           ) : (
-            <Card><Note>Only administrators can upload recordings.</Note></Card>
+            <Card><Note>Your role can view processing results but cannot upload recordings.</Note></Card>
           )}
         </div>
         <div className="min-w-0 lg:col-span-3">
@@ -48,7 +48,7 @@ export default function VideosPage() {
             {jobs.data && (jobs.data.items.length === 0 ? <Empty title="No recordings processed for this store yet" /> : (
               <ul className="divide-y divide-[var(--border-color)]">
                 {jobs.data.items.map((j) => (
-                  <JobRow key={j.id} job={j} tz={store?.timezone} open={openJob === j.id} isAdmin={isAdmin}
+                  <JobRow key={j.id} job={j} tz={store?.timezone} open={openJob === j.id} canManage={canUpload}
                     onToggle={() => setOpenJob(openJob === j.id ? null : j.id)} onChanged={jobs.reload} />
                 ))}
               </ul>
@@ -146,8 +146,8 @@ function UploadCard({ cameras, storeId, onQueued }: { cameras: Camera[]; storeId
   );
 }
 
-function JobRow({ job: j, tz, open, isAdmin, onToggle, onChanged }: {
-  job: Job; tz?: string; open: boolean; isAdmin: boolean; onToggle: () => void; onChanged: () => void;
+function JobRow({ job: j, tz, open, canManage, onToggle, onChanged }: {
+  job: Job; tz?: string; open: boolean; canManage: boolean; onToggle: () => void; onChanged: () => void;
 }) {
   const [err, setErr] = useState<unknown>(null);
   const r = j.results;
@@ -222,7 +222,7 @@ function JobRow({ job: j, tz, open, isAdmin, onToggle, onChanged }: {
               </div>
             </div>
           )}
-          {isAdmin && (
+          {canManage && (
             <div className="flex flex-wrap gap-2">
               {(j.status === "queued" || j.status === "running") && !j.cancel_requested && (
                 <Button variant="danger" onClick={() => void act(`/api/jobs/${j.id}/cancel`)}>Cancel</Button>

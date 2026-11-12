@@ -1,4 +1,4 @@
-"""PurpleSol Backend Configuration.
+"""Footrail Backend Configuration.
 
 All settings come from environment variables (or a local ``.env`` file in
 development). Production refuses to start with insecure defaults; see
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     )
 
     # ── Application ──────────────────────────────────────────────
-    app_name: str = "PurpleSol"
+    app_name: str = "Footrail"
     app_version: str = "2.0.0"
     app_env: str = Field(default="development", alias="APP_ENV")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     admin_email: Optional[str] = Field(default=None, alias="ADMIN_EMAIL")
     admin_password: Optional[str] = Field(default=None, alias="ADMIN_PASSWORD")
     login_rate_limit_per_minute: int = Field(default=10, alias="LOGIN_RATE_LIMIT_PER_MINUTE")
+    # Lets new customers create their own company account from the sign-in page.
+    signup_enabled: bool = Field(default=True, alias="SIGNUP_ENABLED")
+    signup_rate_limit_per_hour: int = Field(default=5, alias="SIGNUP_RATE_LIMIT_PER_HOUR")
     upload_rate_limit_per_hour: int = Field(default=60, alias="UPLOAD_RATE_LIMIT_PER_HOUR")
 
     @property
@@ -85,6 +88,8 @@ class Settings(BaseSettings):
         default=".mp4,.mov,.m4v,.mkv,.avi,.webm", alias="ALLOWED_VIDEO_EXTENSIONS"
     )
     video_retention_days: int = Field(default=30, alias="VIDEO_RETENTION_DAYS")
+    # IP addresses in the audit log are blanked after this many days (0 keeps them).
+    audit_ip_retention_days: int = Field(default=90, alias="AUDIT_IP_RETENTION_DAYS")
 
     @property
     def video_extensions(self) -> List[str]:
@@ -108,6 +113,11 @@ class Settings(BaseSettings):
     job_max_attempts: int = Field(default=3, alias="JOB_MAX_ATTEMPTS")
     job_timeout_seconds: int = Field(default=6 * 3600, alias="JOB_TIMEOUT_SECONDS")
     worker_tmp_dir: str = Field(default="/tmp/purplesol-worker", alias="WORKER_TMP_DIR")
+
+    # Edge boxes (in-store live analysis)
+    edge_heartbeat_seconds: int = Field(default=30, alias="EDGE_HEARTBEAT_SECONDS")
+    edge_analysis_fps: float = Field(default=5.0, alias="EDGE_ANALYSIS_FPS")
+    edge_pairing_minutes: int = Field(default=30, alias="EDGE_PAIRING_MINUTES")
 
     @property
     def is_production(self) -> bool:
