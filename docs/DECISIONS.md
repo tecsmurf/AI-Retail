@@ -147,10 +147,13 @@ Format: decision, why, what it costs, how to undo.
 * The evaluator gained `--drop-rate`/`--seed` so a change can be checked against
   missed detections without new footage.
 
-## D18. Ultralytics usage analytics switched off
+## D18. YOLO26s is the default detector (pipeline 2.2)
 
-* Ultralytics sends anonymous usage events to Google Analytics unless its
-  `sync` setting is off. The worker turns it off (setting and the already
-  created event sender) before loading the model, so store deployments make no
-  calls to third parties. Found during the 11 Nov 2026 end-to-end test
-  (docs/TEST_REPORT_2026-11-11.md).
+* Chosen on person AP over 1,000 COCO images, clean and CCTV-degraded, among
+  YOLO11/12/26 n, s and m (docs/CV_VALIDATION.md). It is the most accurate model
+  that keeps a 4 vCPU worker faster than realtime at 5 fps. YOLO26m is better
+  still but needs a GPU.
+* Ultralytics upgraded from 8.3.52 to 8.4.210 (YOLO26 needs 8.4). PyTorch,
+  NumPy and OpenCV pins are unchanged.
+* Weights are committed next to `yolo11n.pt` (20 MB) so builds and CI never
+  download a model. `YOLO_MODEL=yolo11n.pt` brings back the faster model.

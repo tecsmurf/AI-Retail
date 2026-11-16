@@ -1,4 +1,4 @@
-# PurpleSol video worker: decodes uploads, runs YOLO11 + ByteTrack, writes events.
+# PurpleSol video worker: decodes uploads, runs YOLO26 + ByteTrack, writes events.
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
@@ -16,11 +16,13 @@ RUN pip install -r requirements-worker.txt
 COPY alembic.ini ./
 COPY alembic ./alembic
 COPY app ./app
-# Official Ultralytics YOLO11n weights (sha256 0ebbc80d...6417644ee1), bundled
-# so the worker never downloads a model at runtime.
-COPY yolo11n.pt ./yolo11n.pt
+# Official Ultralytics weights, bundled so the worker never downloads a model
+# at runtime. YOLO26s is the default (sha256 646f8bc3...0a745d0b7); YOLO11n
+# (sha256 0ebbc80d...6417644ee1) is the faster, less accurate option
+# (YOLO_MODEL=/app/yolo11n.pt). See docs/CV_VALIDATION.md.
+COPY yolo26s.pt yolo11n.pt ./
 
 RUN useradd --create-home --uid 10001 app && mkdir -p /tmp/purplesol-worker && chown app /tmp/purplesol-worker
 USER app
-ENV APP_ENV=production YOLO_MODEL=/app/yolo11n.pt YOLO_CONFIG_DIR=/tmp/ultralytics
+ENV APP_ENV=production YOLO_MODEL=/app/yolo26s.pt YOLO_CONFIG_DIR=/tmp/ultralytics
 CMD ["python", "-m", "app.worker"]

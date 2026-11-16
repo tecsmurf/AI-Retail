@@ -9,7 +9,7 @@ footfall figures.
 
 | Item | Value |
 |---|---|
-| Detector | YOLO11n (`yolo11n.pt`), person class only |
+| Detector | YOLO11n (`yolo11n.pt`), person class only (YOLO26s since pipeline 2.2, see below) |
 | Tracker | supervision ByteTrack, `minimum_matching_threshold` 0.8 |
 | Analysis rate | 5 fps (default) and 10 fps |
 | Hardware | 4 vCPU cloud container, CPU only, no GPU |
@@ -85,6 +85,51 @@ the zone polygon includes the last steps of the approach to the table.
 "3.5x" means one hour of video takes about 17 minutes on 4 CPU cores. A worker
 needs at least 1 GB of RAM. Speed will differ on Railway's CPUs; check the
 `realtime_factor` that every finished job reports on the Videos page.
+
+## Detector upgrade to YOLO26s (pipeline 2.2, 2026-11-11)
+
+The public clips are too easy to separate detectors (every model passes them),
+so models were compared on a labelled benchmark: 1,000 COCO val2017 images that
+contain people (fixed seed, same images for every model), person class only,
+scored with the official COCO evaluator. "CCTV-like" is the same images at half
+resolution and JPEG quality 30, scaled back, to imitate a compressed CCTV
+substream. CPU time is per image at 640 px on 4 vCPU (no GPU), Ultralytics
+8.4.210. Reproduce with `python eval/coco_person_benchmark.py COCO_DIR MODEL clean|cctv`.
+
+| Model | Person AP clean | AP50 clean | Person AP CCTV-like | AP50 CCTV-like | Recall at conf 0.35, CCTV-like | Small people AP, CCTV-like | CPU ms/image |
+|---|---|---|---|---|---|---|---|
+| YOLO11n (old default) | 0.523 | 0.775 | 0.327 | 0.561 | 0.257 | 0.108 | 45 |
+| YOLO26n | 0.521 | 0.777 | 0.322 | 0.556 | 0.243 | 0.105 | 41 |
+| YOLO12n | 0.526 | 0.775 | 0.335 | 0.574 | 0.245 | 0.105 | 58 |
+| YOLO11s | 0.580 | 0.821 | 0.375 | 0.611 | 0.299 | 0.129 | 97 |
+| **YOLO26s (new default)** | **0.599** | **0.841** | **0.400** | **0.638** | **0.316** | **0.143** | **94** |
+| YOLO12s | 0.585 | 0.824 | 0.386 | 0.621 | 0.289 | 0.132 | 112 |
+| YOLO11m | 0.623 | 0.853 | 0.407 | 0.641 | 0.319 | 0.141 | 209 |
+| YOLO26m | 0.632 | 0.865 | 0.431 | 0.662 | 0.343 | 0.167 | 221 |
+
+* YOLO26s is the most accurate of the models that keep a CPU worker faster
+  than realtime: +7.6 AP clean and +7.3 AP on the CCTV-like images over YOLO11n,
+  and it finds about a quarter more people above the 0.35 threshold on degraded
+  frames (0.316 vs 0.257 recall). It costs about twice the CPU of YOLO11n.
+* YOLO26m is the most accurate overall, but at 5 fps it needs about 1.1 s of
+  CPU per second of video on 4 vCPU, which is slower than realtime. Use it on a
+  GPU worker or in-store box with a GPU (`YOLO_MODEL=yolo26m.pt`).
+* The nano models are all within about 1 AP of each other; YOLO12 is slower
+  than YOLO11 and YOLO26 on CPU at every size.
+
+Full pipeline with YOLO26s on the public clips: all checks pass at 5, 2.5 fps
+(YOLO11n missed one at 2.5 fps: 8 visitors for 7) and the stress replay gives
+the same errors as YOLO11n within one count (these clips cannot separate the
+detectors). Speed through the whole pipeline at 5 fps: about 2.5 to 2.8x
+realtime (YOLO11n: about 4.9x on the same machine), so one hour of video takes
+about 22 minutes on 4 vCPU. Peak memory rose from about 650 MB to 720 MB.
+
+COCO photos are not store CCTV. These numbers rank the models; they are not a
+store accuracy figure. That still needs the store's own clips.
+
+**Licence.** YOLO11, YOLO12 and YOLO26 weights and the Ultralytics library are
+AGPL-3.0. Selling PurpleSol as a closed product needs either an Ultralytics
+Enterprise licence or AGPL compliance. This was already true with YOLO11n.
 
 ## Pipeline 2.1 changes (2026-11-08)
 

@@ -91,7 +91,7 @@ class Settings(BaseSettings):
         return [e.strip().lower() for e in self.allowed_video_extensions.split(",") if e.strip()]
 
     # ── CV processing ────────────────────────────────────────────
-    yolo_model: str = Field(default="yolo11n.pt", alias="YOLO_MODEL")
+    yolo_model: str = Field(default="yolo26s.pt", alias="YOLO_MODEL")
     yolo_confidence: float = Field(default=0.35, alias="YOLO_CONFIDENCE")
     yolo_iou: float = Field(default=0.5, alias="YOLO_IOU")
     yolo_imgsz: int = Field(default=640, alias="YOLO_IMGSZ")
