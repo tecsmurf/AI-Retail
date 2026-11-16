@@ -26,7 +26,7 @@ from app.cv.tracker import PersonTracker, TrackerConfig
 from app.cv.video_io import DecodeStats, VideoError, VideoMeta, iter_sampled_frames, probe_video
 from app.cv.zone_mapper import ZonePolygon
 
-PIPELINE_VERSION = "2.1.0"
+PIPELINE_VERSION = "2.2.0"
 
 
 class Cancelled(Exception):

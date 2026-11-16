@@ -89,7 +89,7 @@ Create one Railway project with two services from the GitHub repo.
 **Worker service**
 
 * Same repo, root directory `backend`, config path `backend/railway.worker.toml`.
-* It builds `backend/Dockerfile.worker` (CPU PyTorch, ffmpeg, bundled `yolo11n.pt`).
+* It builds `backend/Dockerfile.worker` (CPU PyTorch, ffmpeg, bundled `yolo26s.pt`, plus `yolo11n.pt` as a faster option).
 * No public domain needed. On redeploy it gets 60 s after SIGTERM to hand its
   current job back to the queue.
 
