@@ -1,9 +1,13 @@
 """Journey reconstruction and analysis.
 
-A journey is the ordered event sequence of one anonymous track on one camera
-in one processed video. There is no cross-camera re-identification, so a
-journey only covers what that camera saw; ``observed_entry``/``observed_exit``
-say whether the store entry/exit was actually observed.
+A journey is the ordered event sequence of one anonymous shopper (events
+sharing a ``customer_id``). Within a video, track fragments of the same
+shopper are joined by appearance re-identification (app/cv/linker.py); across
+cameras and files recorded at the same time, app/services/visit_service.py
+gives them one store visit id, so a journey can span cameras. Where that
+linking could not run, a journey covers one camera only.
+``observed_entry``/``observed_exit`` say whether the store entry/exit was
+actually observed.
 
 Journey types (business-rule classification, not model output):
 * ``bounce``: ENTRY then EXIT within 60 s with no zone visit
@@ -68,7 +72,7 @@ def build_journeys(store_id: uuid.UUID, job_id: Optional[uuid.UUID], events: Seq
         duration = (end - start).total_seconds()
         j = CustomerJourney(
             store_id=store_id,
-            job_id=job_id,
+            job_id=job_id if job_id is not None else evs[0].job_id,
             customer_id=customer_id,
             camera_id=evs[0].camera_id,
             source=source,

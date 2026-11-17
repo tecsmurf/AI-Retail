@@ -52,7 +52,7 @@ from app.models.jobs import (
     WorkerHeartbeat,
 )
 from app.models.store import Camera
-from app.services import job_service, journey_service
+from app.services import job_service, journey_service, visit_service
 from app.storage import StorageError, get_storage
 
 log = structlog.get_logger("worker")
@@ -86,7 +86,10 @@ def build_event_rows(job: ProcessingJob, camera: Camera, video: VideoAsset, even
             "id": uuid.uuid4(),
             "store_id": job.store_id,
             "event_type": e.event_type,
-            "customer_id": f"{camera.camera_code}-{video.id.hex[:6]}-T{e.track_id}",
+            # Per-video shopper id (fragments joined by re-identification);
+            # visit_service may then replace it with a store-wide visit id.
+            "customer_id": (f"{camera.camera_code}-{video.id.hex[:6]}-S{e.shopper_id}" if e.shopper_id is not None
+                            else f"{camera.camera_code}-{video.id.hex[:6]}-T{e.track_id}"),
             "camera_id": camera.camera_code,
             "zone_id": e.zone_id,
             "zone_name": e.zone_name,
@@ -223,8 +226,13 @@ class Worker:
                 log.warning("retention_failed", error=str(exc))
 
     async def apply_retention(self) -> None:
-        """Delete source videos older than VIDEO_RETENTION_DAYS that no queued
-        or running job needs. Events, journeys and job records are kept."""
+        """Delete appearance descriptors older than REID_DESCRIPTOR_HOURS, and
+        source videos older than VIDEO_RETENTION_DAYS that no queued or
+        running job needs. Events, journeys and job records are kept."""
+        async with async_session() as db:
+            purged = await visit_service.purge_expired_descriptors(db)
+        if purged:
+            log.info("reid_descriptors_purged", jobs=purged)
         if settings.video_retention_days <= 0:
             return
         cutoff = utcnow() - timedelta(days=settings.video_retention_days)
@@ -393,6 +401,11 @@ class Worker:
             key = f"artifacts/{job_id}/{os.path.basename(path)}"
             storage.put_file(key, path, "image/jpeg")
             out["snapshots"].append(key)
+        packed = visit_service.pack_fragments(result.fragments)
+        if packed:
+            key = visit_service.descriptor_key(job_id)
+            storage.put_bytes(key, packed, "application/octet-stream")
+            out[visit_service.DESCRIPTOR_ARTIFACT] = key
         return out
 
     async def _persist(self, job_id, video_id, camera, result, digest, artifacts, ref_key) -> Dict:
@@ -438,9 +451,18 @@ class Worker:
             overlap = await self._overlap_warning(db, job, video, result.meta.duration_s)
             warnings = list(result.warnings) + ([overlap] if overlap else [])
             video.probe = {**result.meta.as_dict(), "sha256": digest}
-            job.results = {**result.stats, "warnings": warnings, "journeys": journeys,
-                           "recorded_start_assumed": video.recorded_start_assumed}
             job.artifacts = artifacts
+            await db.flush()
+            # Store-wide visits: link this video's shoppers with other cameras
+            # and files recorded at the same time. Never fails the job.
+            try:
+                async with db.begin_nested():
+                    visits = await visit_service.relink_store(db, job.store_id, job_id)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("visit_linking_failed", job_id=str(job_id), error=str(exc))
+                visits = {"linked": False, "reason": f"error: {type(exc).__name__}"}
+            job.results = {**result.stats, "warnings": warnings, "journeys": journeys, "visits": visits,
+                           "recorded_start_assumed": video.recorded_start_assumed}
             job.model_name = result.stats.get("model")
             job.model_sha256 = result.stats.get("model_sha256")
             job.pipeline_version = result.stats.get("pipeline_version")

@@ -64,8 +64,8 @@ class LinkConfig:
     # Cosine distance between mean descriptors (0 = identical, 1 = unrelated).
     # Defaults are for the LightMBN encoder; see docs/REID.md for how they
     # were chosen and the colour fallback's values.
-    max_distance: float = 0.25
-    cross_camera_max_distance: float = 0.25
+    max_distance: float = 0.40
+    cross_camera_max_distance: float = 0.40
     # Each second of gap adds this to the distance, so a near gap wins a tie.
     gap_penalty_per_s: float = 0.0005
     # A link is skipped if the runner-up for either end is within this margin.
@@ -77,6 +77,16 @@ class LinkConfig:
     cross_camera_max_gap_s: float = 120.0
     # Overlap tolerated between consecutive fragments (tracker jitter).
     overlap_tolerance_s: float = 0.3
+    # Self-calibration. Fragments seen at the same time for at least
+    # ``negative_min_overlap_s`` are certainly different people; how close
+    # their descriptors are shows how well the encoder separates people on
+    # this footage. The threshold is lowered to ``adaptive_factor`` x the
+    # 5th percentile of those distances (dark or grainy video makes everyone
+    # look alike, and then almost nothing is joined).
+    adaptive: bool = True
+    adaptive_factor: float = 0.9
+    negative_min_overlap_s: float = 1.0
+    adaptive_min_pairs: int = 8
 
     def as_dict(self) -> dict:
         return dict(self.__dict__)
@@ -89,6 +99,8 @@ class LinkResult:
     same_camera_links: int
     cross_camera_links: int
     skipped_ambiguous: int
+    # Distance thresholds actually used (after self-calibration).
+    thresholds: Dict[str, float] = field(default_factory=dict)
 
 
 def cosine_distance(a: np.ndarray, b: np.ndarray) -> float:
@@ -129,11 +141,46 @@ def _merge_proto(chains: Sequence[_Chain]) -> Optional[np.ndarray]:
     return m / n if n > 0 else None
 
 
+def _calibrate(frs: Sequence[Fragment], cfg: LinkConfig) -> Dict[str, float]:
+    """Per-camera and cross-camera distance limits (see LinkConfig.adaptive)."""
+    limits = {"*": cfg.max_distance, "cross": cfg.cross_camera_max_distance}
+    if not cfg.adaptive:
+        return limits
+    protos = [(f, f.prototype()) for f in frs]
+    protos = [(f, p) for f, p in protos if p is not None]
+    per_cam: Dict[str, List[float]] = {}
+    every: List[float] = []
+    for i, (a, pa) in enumerate(protos):
+        for b, pb in protos[i + 1:]:
+            if min(a.t_end, b.t_end) - max(a.t_start, b.t_start) < cfg.negative_min_overlap_s:
+                continue
+            d = cosine_distance(pa, pb)
+            every.append(d)
+            if a.camera == b.camera:
+                per_cam.setdefault(a.camera, []).append(d)
+
+    def cap(base: float, dists: List[float]) -> Optional[float]:
+        if len(dists) < cfg.adaptive_min_pairs:
+            return None
+        return min(base, cfg.adaptive_factor * float(np.quantile(dists, 0.05)))
+
+    overall = cap(cfg.max_distance, every)
+    if overall is not None:
+        limits["*"] = overall
+    for cam, dists in per_cam.items():
+        limits[cam] = cap(cfg.max_distance, dists) or limits["*"]
+    cross = cap(cfg.cross_camera_max_distance, every)
+    if cross is not None:
+        limits["cross"] = cross
+    return limits
+
+
 def _link_pass(
     chains: List[_Chain],
     cfg: LinkConfig,
     cross: bool,
     transit: Dict[Tuple[str, str], Tuple[float, float]],
+    limits: Dict[str, float],
 ) -> Tuple[List[_Chain], int, int]:
     """One greedy pass. ``cross`` False: same-camera pairs only."""
     cands: List[Tuple[float, int, int]] = []
@@ -152,25 +199,37 @@ def _link_pass(
             if same:
                 if gap > cfg.max_gap_s:
                     continue
-                limit = cfg.max_distance
+                limit = limits.get(a.last_camera, limits["*"])
             else:
                 lo, hi = transit.get((a.last_camera, b.first_camera),
                                      (cfg.cross_camera_min_gap_s, cfg.cross_camera_max_gap_s))
                 if gap < lo - cfg.overlap_tolerance_s or gap > hi:
                     continue
-                limit = cfg.cross_camera_max_distance
+                limit = limits["cross"]
             d = cosine_distance(a.proto, b.proto)
             if d > limit:
                 continue
             cands.append((d + cfg.gap_penalty_per_s * max(0.0, gap), i, j))
     cands.sort()
 
-    # Runner-up costs for the ambiguity rule.
-    best_out: Dict[int, List[float]] = {}
-    best_in: Dict[int, List[float]] = {}
+    # Ambiguity: another candidate for the same end, nearly as cheap, that
+    # cannot be the same person as this one (it overlaps it in time). Two
+    # candidates one after the other are not rivals: both may be this
+    # shopper, and the nearer one is joined first.
+    outs: Dict[int, List[Tuple[float, int]]] = {}
+    ins: Dict[int, List[Tuple[float, int]]] = {}
     for cost, i, j in cands:
-        best_out.setdefault(i, []).append(cost)
-        best_in.setdefault(j, []).append(cost)
+        outs.setdefault(i, []).append((cost, j))
+        ins.setdefault(j, []).append((cost, i))
+
+    def _overlap(x: _Chain, y: _Chain) -> bool:
+        return x.t_start < y.t_end - cfg.overlap_tolerance_s and y.t_start < x.t_end - cfg.overlap_tolerance_s
+
+    def _rival(cost: float, mine: int, others: List[Tuple[float, int]]) -> bool:
+        return any(
+            o != mine and c - cost < cfg.ambiguity_margin and _overlap(chains[o], chains[mine])
+            for c, o in others
+        )
 
     succ: Dict[int, int] = {}
     pred: Dict[int, int] = {}
@@ -179,10 +238,7 @@ def _link_pass(
     for cost, i, j in cands:
         if i in succ or j in pred:
             continue
-        outs, ins = best_out[i], best_in[j]
-        if (len(outs) > 1 and outs[1] - cost < cfg.ambiguity_margin and outs[0] == cost) or (
-            len(ins) > 1 and ins[1] - cost < cfg.ambiguity_margin and ins[0] == cost
-        ):
+        if _rival(cost, j, outs[i]) or _rival(cost, i, ins[j]):
             skipped += 1
             continue
         # Never close a loop (j's chain already leads to i).
@@ -221,16 +277,16 @@ def link_fragments(
     frs = sorted(fragments, key=lambda f: (f.t_start, str(f.camera), str(f.key)))
     chains = [_Chain([f], f.prototype()) for f in frs]
     same_links = cross_links = skipped = 0
+    limits = _calibrate(frs, cfg)
     if cfg.enabled and len(chains) > 1:
-        chains, same_links, s1 = _link_pass(chains, cfg, cross=False, transit=transit or {})
+        chains, same_links, s1 = _link_pass(chains, cfg, False, transit or {}, limits)
         skipped += s1
         if len({f.camera for f in frs}) > 1:
-            chains, cross_links, s2 = _link_pass(chains, cfg, cross=True, transit=transit or {})
+            chains, cross_links, s2 = _link_pass(chains, cfg, True, transit or {}, limits)
             skipped += s2
-            # Cross-camera links can make a same-camera return possible
-            # (aisle cam -> billing cam -> aisle cam is not; aisle -> aisle
-            # after a detour is), so run the same-camera pass once more.
-            chains, more, s3 = _link_pass(chains, cfg, cross=False, transit=transit or {})
+            # A shopper who went to another camera and came back is now one
+            # chain per visit to this camera: join those as well.
+            chains, more, s3 = _link_pass(chains, cfg, False, transit or {}, limits)
             same_links += more
             skipped += s3
     chains.sort(key=lambda c: (c.t_start, str(c.first_camera)))
@@ -238,4 +294,5 @@ def link_fragments(
     for n, c in enumerate(chains, 1):
         for m in c.members:
             shopper_of[m.key] = n
-    return LinkResult(shopper_of, len(chains), same_links, cross_links, skipped)
+    return LinkResult(shopper_of, len(chains), same_links, cross_links, skipped,
+                      {k: round(v, 3) for k, v in limits.items()})
