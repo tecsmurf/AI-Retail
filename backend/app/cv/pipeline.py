@@ -54,9 +54,23 @@ class ReidConfig:
     # ``max_fallback_per_track`` such crops are used instead.
     fallback_max_covered: float = 0.5
     max_fallback_per_track: int = 5
+    # Frames darker than this mean grey level (0-255) describe people poorly:
+    # in the made night clips everyone looked alike to the encoder. If most
+    # descriptors of a video come from such frames, the linking threshold is
+    # multiplied by ``low_light_factor``.
+    low_light_grey: float = 90.0
+    low_light_factor: float = 0.5
 
     def as_dict(self) -> dict:
         return dict(self.__dict__)
+
+
+def _poor_light(frame, n_crops: int, rc: "ReidConfig") -> int:
+    """``n_crops`` if this frame is too dark to describe people well, else 0."""
+    import cv2
+
+    small = cv2.resize(frame, (64, 36), interpolation=cv2.INTER_AREA)
+    return n_crops if cv2.cvtColor(small, cv2.COLOR_BGR2GRAY).mean() < rc.low_light_grey else 0
 
 
 def _covered_share(i: int, boxes: Sequence[tuple]) -> float:
@@ -200,6 +214,7 @@ def run_pipeline(
     last_fallback_t: Dict[int, float] = {}
     reid_seconds = 0.0
     crops_embedded = 0
+    poor_light_crops = 0
     heat: Dict[int, float] = {}
     sample_s = 1.0 / analysis_fps
 
@@ -269,6 +284,7 @@ def run_pipeline(
                         pick.append(i)
                         pick_good.append(False)
                 if pick:
+                    poor_light_crops += _poor_light(frame, len(pick), cfg.reid)
                     t1 = time.monotonic()
                     vecs = enc.embed(frame, [px[i] for i in pick])
                     reid_seconds += time.monotonic() - t1
@@ -318,7 +334,12 @@ def run_pipeline(
                  descriptors=descriptors.get(vid) or fallback.get(vid, []), first_box=spans[vid][2], last_box=spans[vid][3])
         for vid in sorted(engine.confirmed_track_ids) if vid in spans
     ]
-    link = link_fragments(fragments, cfg.link if enc is not None else LinkConfig(enabled=False))
+    link_cfg = cfg.link if enc is not None else LinkConfig(enabled=False)
+    low_light = crops_embedded > 0 and poor_light_crops > 0.5 * crops_embedded
+    if low_light:
+        link_cfg = LinkConfig(**{**link_cfg.as_dict(),
+                                 "max_distance": link_cfg.max_distance * cfg.reid.low_light_factor})
+    link = link_fragments(fragments, link_cfg)
     for e in events:
         e.shopper_id = link.shopper_of.get(e.track_id)
     if artifact_dir:
@@ -366,6 +387,7 @@ def run_pipeline(
             "descriptors": crops_embedded,
             "seconds": round(reid_seconds, 2),
             "same_camera_links": link.same_camera_links,
+            "low_light": low_light,
             "thresholds": link.thresholds,
             "skipped_ambiguous": link.skipped_ambiguous,
         },

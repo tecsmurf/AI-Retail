@@ -93,6 +93,8 @@ async def relink_store(db: AsyncSession, store_id: uuid.UUID, job_id: uuid.UUID)
     """Link shoppers across every job recorded around ``job_id``'s video.
 
     Runs inside the caller's transaction; does not commit."""
+    if not settings.reid_store_linking:
+        return {"linked": False, "reason": "REID_STORE_LINKING is off"}
     slack = timedelta(seconds=settings.reid_cross_camera_max_gap_s)
     rows = (
         await db.execute(

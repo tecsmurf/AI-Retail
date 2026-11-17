@@ -157,3 +157,36 @@ Format: decision, why, what it costs, how to undo.
   NumPy and OpenCV pins are unchanged.
 * Weights are committed next to `yolo11n.pt` (20 MB) so builds and CI never
   download a model. `YOLO_MODEL=yolo11n.pt` brings back the faster model.
+
+## D24. Shoppers are re-identified by body appearance, within one store visit (pipeline 2.3)
+
+(D19-D23 are used by the open chain-product PR.)
+
+* Problem: one person got several ids when hidden behind another shopper for
+  more than 2 s (busy aisle: 8-14 "people" for 6), and every camera counted
+  them again. Journeys covered one camera only.
+* Each tracked person gets an appearance descriptor about once a second from
+  LightMBN-n (person re-identification network, boxmot weights trained on
+  DukeMTMC-reID, exported to TorchScript, `backend/lmbn_n_duke.torchscript`,
+  26 MB, ~30 ms per crop on 4 vCPU). Clothing-colour histograms are the
+  fallback if the model cannot load (`REID_ENCODER=colour`).
+* `app/cv/linker.py` joins fragments greedily under hard rules (no overlap in
+  time, gap limits, ambiguity guard) and calibrates its threshold on each
+  video from people visible at the same time, so it stops joining when the
+  footage makes everyone look alike (dark video). Measured in docs/REID.md.
+* `app/services/visit_service.py` links jobs of one store recorded at the same
+  time (cameras and consecutive files) into store visit ids (`V...`) and
+  rebuilds journeys across cameras. No new table: one float16 vector per
+  fragment is kept in object storage and deleted after `REID_DESCRIPTOR_HOURS`
+  (24). `REID_STORE_LINKING=false` turns cross-video linking off.
+* Privacy: no face model, no images kept for matching, no identity outside one
+  visit; a returning shopper is never recognised. The DPDP drafts need an
+  addendum (descriptors are personal data while they exist).
+* Licence to check before selling: the weights were trained on research
+  datasets (DukeMTMC-reID, withdrawn by its authors in 2019); boxmot is AGPL
+  like Ultralytics. Retraining on licensed data, or the colour fallback,
+  avoids the dataset question.
+* Per-camera heatmaps: each job stores a 64x36 grid of person-seconds by feet
+  position; `/api/analytics/{store}/heatmap` and the Heatmap page draw them
+  over the camera picture. A floor-plan heatmap needs cameras placed on a
+  store plan (next step).
