@@ -203,10 +203,12 @@ async def test_shutdown_requeues_without_consuming_attempt(admin, clip):
     assert j["status"] == "queued" and j["attempts"] == 0
 
 
-async def test_shopper_is_one_visit_across_two_cameras(admin, tmp_path):
+async def test_shopper_is_one_visit_across_two_cameras(admin, tmp_path, monkeypatch):
     """Door camera sees a shopper leave to the right; 3 s later the aisle
     camera sees the same shopper. Both videos' events get one store visit id
     and one journey runs across both cameras."""
+    from app.config import settings
+    monkeypatch.setattr(settings, "reid_store_linking", True)
     store = await make_store(admin)
     whole = [[0, 0], [1, 0], [1, 1], [0, 1]]
     cams = []

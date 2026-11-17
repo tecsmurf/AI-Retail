@@ -180,5 +180,5 @@ async def journey_analytics(db: AsyncSession, store_id: uuid.UUID, tr: TimeRange
             }
             for p, c in paths.most_common(top)
         ],
-        "scope_note": "Journeys are per camera: tracks are not linked across cameras.",
+        "scope_note": "Journeys follow one anonymous shopper. Videos from different cameras recorded at the same time are linked into store-wide visits by clothing and build (no faces); where that was not possible a journey covers one camera.",
     }

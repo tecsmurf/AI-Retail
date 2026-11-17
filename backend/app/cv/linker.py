@@ -65,7 +65,20 @@ class LinkConfig:
     # Defaults are for the LightMBN encoder; see docs/REID.md for how they
     # were chosen and the colour fallback's values.
     max_distance: float = 0.40
-    cross_camera_max_distance: float = 0.40
+    cross_camera_max_distance: float = 0.30
+    # A shopper hidden behind someone reappears within seconds, near where
+    # they vanished. A fragment that ended at the picture edge (person walked
+    # out) or a long gap is a re-entry: any similar-looking person could be
+    # the one coming in, so the distance must be under
+    # ``reentry_factor`` x the limit. 0 = re-entries are never joined: on the
+    # test clips two different men dressed in black, seen from behind, were
+    # 0.11 apart (docs/REID.md), closer than most true matches.
+    occlusion_gap_s: float = 10.0
+    # ...and reappears within this distance (in heights of their box).
+    occlusion_radius_heights: float = 1.0
+    occlusion_heights_per_s: float = 0.5
+    edge_margin: float = 0.03
+    reentry_factor: float = 0.0
     # Each second of gap adds this to the distance, so a near gap wins a tie.
     gap_penalty_per_s: float = 0.0005
     # A link is skipped if the runner-up for either end is within this margin.
@@ -141,6 +154,25 @@ def _merge_proto(chains: Sequence[_Chain]) -> Optional[np.ndarray]:
     return m / n if n > 0 else None
 
 
+def _at_edge(box: Box, margin: float) -> bool:
+    return box[0] <= margin or box[1] <= margin or box[2] >= 1 - margin or box[3] >= 1 - margin
+
+
+def _reentry(last: Optional[Box], first: Optional[Box], gap: float, cfg: LinkConfig) -> bool:
+    """True unless this looks like a short occlusion: the person vanished
+    inside the picture and reappeared close by, soon after."""
+    if gap > cfg.occlusion_gap_s:
+        return True
+    if last is None or first is None:
+        return False
+    if _at_edge(last, cfg.edge_margin) or _at_edge(first, cfg.edge_margin):
+        return True
+    h = max(1e-6, last[3] - last[1])
+    dx = (first[0] + first[2]) / 2 - (last[0] + last[2]) / 2
+    dy = first[3] - last[3]
+    return (dx * dx + dy * dy) ** 0.5 / h > cfg.occlusion_radius_heights + cfg.occlusion_heights_per_s * max(0.0, gap)
+
+
 def _calibrate(frs: Sequence[Fragment], cfg: LinkConfig) -> Dict[str, float]:
     """Per-camera and cross-camera distance limits (see LinkConfig.adaptive)."""
     limits = {"*": cfg.max_distance, "cross": cfg.cross_camera_max_distance}
@@ -200,6 +232,8 @@ def _link_pass(
                 if gap > cfg.max_gap_s:
                     continue
                 limit = limits.get(a.last_camera, limits["*"])
+                if _reentry(a.members[-1].last_box, b.members[0].first_box, gap, cfg):
+                    limit *= cfg.reentry_factor
             else:
                 lo, hi = transit.get((a.last_camera, b.first_camera),
                                      (cfg.cross_camera_min_gap_s, cfg.cross_camera_max_gap_s))

@@ -54,11 +54,30 @@ def test_different_people_are_not_joined():
     assert r.shoppers == 2
 
 
-def test_gap_limit():
+def test_gap_limit_and_reentry():
     a = person()
-    cfg = LinkConfig(max_gap_s=30)
-    assert link_fragments([frag(1, 0, 10, a), frag(2, 45, 50, a)], cfg).shoppers == 2
-    assert link_fragments([frag(1, 0, 10, a), frag(2, 45, 50, a)], LinkConfig(max_gap_s=60)).shoppers == 1
+    # A long gap is a re-entry, not an occlusion: never joined by default.
+    assert link_fragments([frag(1, 0, 10, a), frag(2, 45, 50, a)]).shoppers == 2
+    loose = dict(reentry_factor=1.0)
+    assert link_fragments([frag(1, 0, 10, a), frag(2, 45, 50, a)], LinkConfig(max_gap_s=30, **loose)).shoppers == 2
+    assert link_fragments([frag(1, 0, 10, a), frag(2, 45, 50, a)], LinkConfig(max_gap_s=60, **loose)).shoppers == 1
+
+
+def test_occlusion_needs_reappearing_close_by():
+    a = person()
+    box = (0.40, 0.50, 0.44, 0.70)
+    near = (0.42, 0.51, 0.46, 0.71)
+    far = (0.85, 0.50, 0.89, 0.70)  # 2.25 box heights away after 2 s
+    edge = (0.00, 0.50, 0.04, 0.70)
+
+    def pair(last, first):
+        f1, f2 = frag(1, 0, 10, a), frag(2, 12, 20, a)
+        f1.last_box, f2.first_box = last, first
+        return link_fragments([f1, f2]).shoppers
+
+    assert pair(box, near) == 1
+    assert pair(box, far) == 2   # reappeared elsewhere: someone else may have walked in
+    assert pair(edge, near) == 2  # walked out of the picture
 
 
 def test_ambiguous_successor_is_left_alone():
