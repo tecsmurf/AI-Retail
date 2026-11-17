@@ -18,7 +18,6 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/live", destination: "/videos", permanent: false },
-      { source: "/heatmap", destination: "/analytics", permanent: false },
     ];
   },
   async headers() {
