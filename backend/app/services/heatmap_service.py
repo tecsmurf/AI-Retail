@@ -13,10 +13,9 @@ from __future__ import annotations
 import uuid
 from typing import Dict, List, Sequence
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.event import Event
 from app.models.jobs import JOB_COMPLETED, ProcessingJob, VideoAsset
 from app.models.store import Camera
 from app.services.timerange import TimeRange
@@ -47,7 +46,7 @@ async def camera_heatmaps(db: AsyncSession, store_id: uuid.UUID, tr: TimeRange, 
         c = per_cam.setdefault(cam.id, {
             "camera_id": str(cam.id), "camera_code": cam.camera_code, "name": cam.name,
             "has_reference_frame": bool(cam.reference_frame_key),
-            "cols": hm["cols"], "rows": hm["rows"], "_cells": {}, "videos": 0, "seconds_analysed": 0.0,
+            "cols": hm["cols"], "rows": hm["rows"], "_cells": {}, "videos": 0, "shoppers": 0, "seconds_analysed": 0.0,
             "_jobs": [],
         })
         if (hm["cols"], hm["rows"]) != (c["cols"], c["rows"]):
@@ -55,18 +54,14 @@ async def camera_heatmaps(db: AsyncSession, store_id: uuid.UUID, tr: TimeRange, 
         for cell, secs in hm["cells"]:
             c["_cells"][cell] = c["_cells"].get(cell, 0.0) + float(secs)
         c["videos"] += 1
+        c["shoppers"] += int(res.get("visitors") or 0)
         c["seconds_analysed"] += float(res.get("decoded_seconds") or 0)
         c["_jobs"].append(job.id)
 
     out: List[Dict] = []
     for c in per_cam.values():
-        shoppers = (
-            await db.execute(
-                select(func.count(func.distinct(Event.customer_id))).where(Event.job_id.in_(c.pop("_jobs")))
-            )
-        ).scalar_one()
+        c.pop("_jobs")
         cells = c.pop("_cells")
-        c["shoppers"] = int(shoppers or 0)
         c["person_seconds"] = round(sum(cells.values()), 1)
         c["max_cell_seconds"] = round(max(cells.values()), 2) if cells else 0.0
         c["cells"] = [[k, round(v, 2)] for k, v in sorted(cells.items())]

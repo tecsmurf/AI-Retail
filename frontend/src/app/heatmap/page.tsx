@@ -35,16 +35,17 @@ function HeatLayer({ cam }: { cam: CameraHeatmap }) {
     const max = Math.sqrt(cam.max_cell_seconds || 1);
     for (const [cell, secs] of cam.cells) {
       const v = Math.sqrt(secs) / max;
+      if (v < 0.08) continue; // a single passing step: leave the picture clear
       const [r, g, b] = rampColour(v);
       const o = cell * 4;
       img.data[o] = r; img.data[o + 1] = g; img.data[o + 2] = b;
-      img.data[o + 3] = Math.round(70 + 170 * v);
+      img.data[o + 3] = Math.round(120 + 135 * v);
     }
     ctx.putImageData(img, 0, 0);
   }, [cam]);
   return (
     <canvas ref={ref} width={cam.cols} height={cam.rows} aria-hidden
-      className="absolute inset-0 h-full w-full" style={{ filter: "blur(10px)", imageRendering: "auto" }} />
+      className="absolute inset-0 h-full w-full" style={{ filter: "blur(6px) saturate(1.3)", imageRendering: "auto" }} />
   );
 }
 
@@ -57,7 +58,7 @@ function CameraCard({ cam }: { cam: CameraHeatmap }) {
         {cam.has_reference_frame && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={`/api/cameras/${cam.camera_id}/reference-frame`} alt={`Camera ${cam.camera_code}`}
-            className="absolute inset-0 h-full w-full object-fill opacity-70" />
+            className="absolute inset-0 h-full w-full object-fill opacity-60 grayscale" />
         )}
         <HeatLayer cam={cam} />
       </div>
@@ -89,9 +90,9 @@ export default function HeatmapPage() {
         ) : (
           <div className="space-y-4">
             <Note>
-              Colour shows how long people stood at each spot (their feet position), red the longest. It is
-              counted from processed videos only. Shoppers are counted once per visit, also when they leave the
-              picture and come back.
+              Colour shows how long people stood at each spot (their feet position), from blue (briefly) to red
+              (longest). It is counted from processed videos only. A shopper hidden behind others for a moment is
+              counted once; someone who walks out of the picture and comes back is counted again.
             </Note>
             <div className="grid gap-4 lg:grid-cols-2">
               {hm.data.cameras.map((c) => <CameraCard key={c.camera_id} cam={c} />)}
