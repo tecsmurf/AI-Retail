@@ -65,7 +65,7 @@ class ReidConfig:
         return dict(self.__dict__)
 
 
-def _poor_light(frame, n_crops: int, rc: "ReidConfig") -> int:
+def _poor_light(frame, n_crops: int, rc: ReidConfig) -> int:
     """``n_crops`` if this frame is too dark to describe people well, else 0."""
     import cv2
 
