@@ -97,6 +97,9 @@ class EngineEvent:
     box: Optional[Box] = None
     meta: dict = field(default_factory=dict)
     seq: int = 0  # per-track sequence number (deterministic ids)
+    # Anonymous shopper (visit) number after re-identification has joined
+    # track fragments of the same person; None when linking did not run.
+    shopper_id: Optional[int] = None
 
     def key(self, namespace: str) -> str:
         raw = f"{namespace}:{self.track_id}:{self.seq}:{self.event_type}"
@@ -160,6 +163,8 @@ class EventEngine:
         self._next_occupancy_t = 0.0
         self.finished_tracks = 0
         self.discarded_short_tracks = 0
+        # Track ids that lived long enough to count as a person.
+        self.confirmed_track_ids: set = set()
 
     # ── Public API ───────────────────────────────────────────────
 
@@ -401,6 +406,8 @@ class EventEngine:
             st.pending_queue_exit_t = None
         if not st.confirmed:
             self.discarded_short_tracks += 1
+        else:
+            self.confirmed_track_ids.add(st.track_id)
         self.finished_tracks += 1
         del self.tracks[st.track_id]
 
