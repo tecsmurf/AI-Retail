@@ -19,7 +19,7 @@ from app.models.anomaly import Alert, Anomaly
 from app.models.store import Store
 from app.models.user import User
 from app.security import current_user, require_admin
-from app.services import anomaly_service, journey_service, metrics
+from app.services import anomaly_service, heatmap_service, journey_service, metrics
 from app.services.insights import build_insights
 
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
@@ -116,6 +116,8 @@ async def journeys(
             "total_dwell_seconds": j.total_dwell_seconds, "visited_billing": j.visited_billing,
             "made_purchase": j.made_purchase, "observed_entry": j.observed_entry, "observed_exit": j.observed_exit,
             "journey_type": j.journey_type,
+            # Store visit ids (V...) were linked across cameras and files.
+            "store_wide": j.customer_id.startswith("V"),
             "steps": [
                 {"sequence": s.sequence, "event_type": s.event_type, "zone_name": s.zone_name,
                  "timestamp": s.timestamp.isoformat() + "Z", "dwell_seconds": s.dwell_seconds}
@@ -125,6 +127,14 @@ async def journeys(
         for j in page["items"]
     ]
     return _envelope(store, tr, sources, {"total": page["total"], "limit": limit, "offset": offset, "items": items})
+
+
+@router.get("/{store_id}/heatmap")
+async def heatmap(rp: RangeParams = Depends(), store: Store = Depends(get_store), _: User = Depends(current_user),
+                  db: AsyncSession = Depends(get_db)):
+    """Per-camera grids of where people stood (person-seconds, feet position)."""
+    tr, sources = rp.resolve(store)
+    return _envelope(store, tr, sources, await heatmap_service.camera_heatmaps(db, store.id, tr, sources))
 
 
 @router.get("/{store_id}/journeys/analytics")

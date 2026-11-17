@@ -85,6 +85,16 @@ class Settings(BaseSettings):
         default=".mp4,.mov,.m4v,.mkv,.avi,.webm", alias="ALLOWED_VIDEO_EXTENSIONS"
     )
     video_retention_days: int = Field(default=30, alias="VIDEO_RETENTION_DAYS")
+    # Appearance descriptors used to link a shopper across cameras are kept
+    # this long after a job finishes, then deleted (docs/REID.md).
+    reid_descriptor_hours: float = Field(default=24.0, alias="REID_DESCRIPTOR_HOURS")
+    # Link shoppers across cameras/files of a store. Off by default: on made
+    # test footage the appearance model confused different people dressed
+    # alike when they enter a new view (docs/REID.md). Turn on only after it
+    # has been checked on the store's own cameras.
+    reid_store_linking: bool = Field(default=False, alias="REID_STORE_LINKING")
+    # Seconds a shopper may take to walk between two cameras.
+    reid_cross_camera_max_gap_s: float = Field(default=120.0, alias="REID_CROSS_CAMERA_MAX_GAP_S")
 
     @property
     def video_extensions(self) -> List[str]:

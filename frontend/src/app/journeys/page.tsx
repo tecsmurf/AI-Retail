@@ -34,7 +34,7 @@ export default function JourneysPage() {
 
   return (
     <>
-      <PageHeader title="Journeys" subtitle="Anonymous paths of tracked people, per camera" />
+      <PageHeader title="Journeys" subtitle="Anonymous paths of shoppers through the store" />
       <FilterBar />
       {ja.error && <ErrorState error={ja.error} onRetry={ja.reload} />}
       {ja.loading && !ja.data && <Loading />}
@@ -46,7 +46,7 @@ export default function JourneysPage() {
             <Stat label="Avg. zones visited" value={ja.data.avg_zones_visited?.toFixed(1) ?? "—"} />
             <Stat label="Seen entering / exiting" value={`${fmtInt(ja.data.with_observed_entry)} / ${fmtInt(ja.data.with_observed_exit)}`} />
           </div>
-          <Note>{ja.data.scope_note} A journey is one track on one camera, so a shopper seen by two cameras appears twice. Purchases are never inferred from visiting the counter.</Note>
+          <Note>{ja.data.scope_note} Matching uses only what a camera sees of clothing and build, is kept for one day at most, and never recognises a returning shopper. Purchases are never inferred from visiting the counter.</Note>
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardTitle title="Journey types" />
@@ -108,6 +108,7 @@ function JourneyRow({ j, tz }: { j: Journey; tz: string }) {
       <button className="flex w-full flex-wrap items-center gap-2 p-3 text-left" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <span className="font-mono text-xs text-[var(--text-secondary)]">{j.customer_id}</span>
         <Badge>{TYPE_LABELS[j.journey_type] ?? j.journey_type}</Badge>
+        {j.store_wide && <Badge tone="info">Across cameras</Badge>}
         {j.source !== "cv" && <Badge tone="warn">{SOURCE_LABELS[j.source] ?? j.source}</Badge>}
         <span className="ml-auto text-xs tabular-nums text-[var(--text-muted)]">
           {fmtTime(j.entry_time, tz)} · {fmtDuration(j.duration_seconds)} · {j.zone_count} zones
