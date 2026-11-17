@@ -262,6 +262,8 @@ def test_ultralytics_telemetry_disabled():
     yolo_settings.update({"sync": True})
     disable_ultralytics_telemetry()
     assert yolo_settings.get("sync") is False
-    from ultralytics.hub import utils as hub_utils
+    from ultralytics.utils import events
 
-    assert hub_utils.events.enabled is False
+    events.events.enabled = True
+    disable_ultralytics_telemetry()
+    assert events.events.enabled is False
