@@ -117,10 +117,15 @@ def disable_ultralytics_telemetry() -> None:
     try:
         # The events sender decides once, at import, whether it is enabled,
         # so a fresh container with default settings must be switched off too.
-        from ultralytics.hub import utils as hub_utils
+        # It lives in ultralytics.utils.events from 8.4 on, ultralytics.hub before.
+        import importlib
 
-        hub_utils.events.enabled = False
-    except Exception:  # noqa: BLE001  (layout differs in other Ultralytics versions)
+        for name in ("ultralytics.utils.events", "ultralytics.hub.utils"):
+            try:
+                importlib.import_module(name).events.enabled = False
+            except Exception:  # noqa: BLE001  (module absent in this Ultralytics version)
+                continue
+    except Exception:  # noqa: BLE001
         pass
 
 

@@ -1,9 +1,13 @@
 """Journey reconstruction and analysis.
 
-A journey is the ordered event sequence of one anonymous track on one camera
-in one processed video. There is no cross-camera re-identification, so a
-journey only covers what that camera saw; ``observed_entry``/``observed_exit``
-say whether the store entry/exit was actually observed.
+A journey is the ordered event sequence of one anonymous shopper (events
+sharing a ``customer_id``). Within a video, track fragments of the same
+shopper are joined by appearance re-identification (app/cv/linker.py); across
+cameras and files recorded at the same time, app/services/visit_service.py
+gives them one store visit id, so a journey can span cameras. Where that
+linking could not run, a journey covers one camera only.
+``observed_entry``/``observed_exit`` say whether the store entry/exit was
+actually observed.
 
 Journey types (business-rule classification, not model output):
 * ``bounce``: ENTRY then EXIT within 60 s with no zone visit
@@ -68,7 +72,7 @@ def build_journeys(store_id: uuid.UUID, job_id: Optional[uuid.UUID], events: Seq
         duration = (end - start).total_seconds()
         j = CustomerJourney(
             store_id=store_id,
-            job_id=job_id,
+            job_id=job_id if job_id is not None else evs[0].job_id,
             customer_id=customer_id,
             camera_id=evs[0].camera_id,
             source=source,
@@ -176,5 +180,5 @@ async def journey_analytics(db: AsyncSession, store_id: uuid.UUID, tr: TimeRange
             }
             for p, c in paths.most_common(top)
         ],
-        "scope_note": "Journeys are per camera: tracks are not linked across cameras.",
+        "scope_note": "Journeys follow one anonymous shopper. Videos from different cameras recorded at the same time are linked into store-wide visits by clothing and build (no faces); where that was not possible a journey covers one camera.",
     }

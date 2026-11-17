@@ -202,6 +202,7 @@ export interface Journey {
   observed_entry: boolean;
   observed_exit: boolean;
   journey_type: string;
+  store_wide?: boolean;
   steps: JourneyStep[];
 }
 
@@ -390,4 +391,23 @@ export interface Readiness {
   status: "ready" | "not_ready";
   version: string;
   checks: Record<string, { ok: boolean; error?: string; [k: string]: unknown }>;
+}
+
+export interface CameraHeatmap {
+  camera_id: string;
+  camera_code: string;
+  name: string;
+  has_reference_frame: boolean;
+  cols: number;
+  rows: number;
+  cells: [number, number][];
+  videos: number;
+  seconds_analysed: number;
+  shoppers: number;
+  person_seconds: number;
+  max_cell_seconds: number;
+}
+
+export interface HeatmapResponse extends Envelope {
+  cameras: CameraHeatmap[];
 }

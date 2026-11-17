@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  Activity, BarChart3, Clapperboard, LayoutDashboard, Lightbulb, LogOut, Menu, Route, Settings2, X,
+  Activity, BarChart3, Clapperboard, Flame, LayoutDashboard, Lightbulb, LogOut, Menu, Route, Settings2, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DashboardProvider } from "./dashboard";
@@ -15,6 +15,7 @@ const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard, mobile: true },
   { href: "/analytics", label: "Analytics", icon: BarChart3, mobile: true },
   { href: "/journeys", label: "Journeys", icon: Route, mobile: false },
+  { href: "/heatmap", label: "Heatmap", icon: Flame, mobile: false },
   { href: "/insights", label: "Insights", icon: Lightbulb, mobile: true },
   { href: "/videos", label: "Videos", icon: Clapperboard, mobile: true },
   { href: "/setup", label: "Cameras & zones", icon: Settings2, mobile: false },
