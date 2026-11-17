@@ -85,6 +85,11 @@ class Settings(BaseSettings):
         default=".mp4,.mov,.m4v,.mkv,.avi,.webm", alias="ALLOWED_VIDEO_EXTENSIONS"
     )
     video_retention_days: int = Field(default=30, alias="VIDEO_RETENTION_DAYS")
+    # Appearance descriptors used to link a shopper across cameras are kept
+    # this long after a job finishes, then deleted (docs/REID.md).
+    reid_descriptor_hours: float = Field(default=24.0, alias="REID_DESCRIPTOR_HOURS")
+    # Seconds a shopper may take to walk between two cameras.
+    reid_cross_camera_max_gap_s: float = Field(default=120.0, alias="REID_CROSS_CAMERA_MAX_GAP_S")
 
     @property
     def video_extensions(self) -> List[str]:

@@ -84,6 +84,9 @@ class PipelineConfig:
     link: LinkConfig = field(default_factory=LinkConfig)
     max_video_seconds: Optional[float] = None
     snapshot_count: int = 6
+    # Heatmap grid over the camera picture (feet positions, person-seconds).
+    heatmap_cols: int = 64
+    heatmap_rows: int = 36
 
     def as_dict(self) -> dict:
         return {
@@ -105,7 +108,8 @@ class PipelineConfig:
         stitch = StitchConfig(**(data.pop("stitch", None) or {}))
         reid = ReidConfig(**(data.pop("reid", None) or {}))
         link = LinkConfig(**(data.pop("link", None) or {}))
-        allowed = {"analysis_fps", "detector_confidence", "max_video_seconds", "snapshot_count"}
+        allowed = {"analysis_fps", "detector_confidence", "max_video_seconds", "snapshot_count",
+                   "heatmap_cols", "heatmap_rows"}
         return cls(tracker=tracker, engine=engine, stitch=stitch, reid=reid, link=link,
                    **{k: v for k, v in data.items() if k in allowed})
 
@@ -193,8 +197,11 @@ def run_pipeline(
     descriptors: Dict[int, List] = {}
     fallback: Dict[int, List] = {}
     last_desc_t: Dict[int, float] = {}
+    last_fallback_t: Dict[int, float] = {}
     reid_seconds = 0.0
     crops_embedded = 0
+    heat: Dict[int, float] = {}
+    sample_s = 1.0 / analysis_fps
 
     tracks_fh = None
     tracks_path = None
@@ -231,6 +238,10 @@ def run_pipeline(
             engine.update(ts, observations)
 
             for vid, box, _ in observations:
+                fx = min(max((box[0] + box[2]) / 2.0, 0.0), 0.999999)
+                fy = min(max(box[3], 0.0), 0.999999)
+                cell = int(fy * cfg.heatmap_rows) * cfg.heatmap_cols + int(fx * cfg.heatmap_cols)
+                heat[cell] = heat.get(cell, 0.0) + sample_s
                 sp = spans.get(vid)
                 if sp is None:
                     spans[vid] = [ts, ts, box, box]
@@ -240,18 +251,18 @@ def run_pipeline(
                 px = [(b[0] * w, b[1] * h, b[2] * w, b[3] * h) for _, b, _ in observations]
                 pick, pick_good = [], []
                 for i, (vid, nb, _) in enumerate(observations):
-                    if ts - last_desc_t.get(vid, -1e9) < cfg.reid.interval_s:
-                        continue
                     if px[i][3] - px[i][1] < cfg.reid.min_height_px:
                         continue
                     em = cfg.reid.edge_margin
                     cut = nb[0] <= em or nb[1] <= em or nb[2] >= 1 - em or nb[3] >= 1 - em
                     covered = _covered_share(i, px)
                     if not cut and covered <= cfg.reid.max_covered:
-                        if len(descriptors.get(vid, ())) < cfg.reid.max_per_track:
+                        if (len(descriptors.get(vid, ())) < cfg.reid.max_per_track
+                                and ts - last_desc_t.get(vid, -1e9) >= cfg.reid.interval_s):
                             pick.append(i)
                             pick_good.append(True)
                     elif (not descriptors.get(vid) and covered <= cfg.reid.fallback_max_covered
+                          and ts - last_fallback_t.get(vid, -1e9) >= cfg.reid.interval_s
                           and len(fallback.get(vid, ())) < cfg.reid.max_fallback_per_track):
                         # No clean view of this person yet: keep a few
                         # cut-off or partly covered crops in reserve.
@@ -266,7 +277,7 @@ def run_pipeline(
                             continue
                         vid = observations[i][0]
                         (descriptors if good else fallback).setdefault(vid, []).append(vec)
-                        last_desc_t[vid] = ts
+                        (last_desc_t if good else last_fallback_t)[vid] = ts
                         crops_embedded += 1
 
             if tracks_fh is not None:
@@ -343,11 +354,19 @@ def run_pipeline(
         "visitors": link.shoppers,
         "track_fragments": len(fragments),
         "tracks_discarded_short": engine.discarded_short_tracks,
+        # Where people stood on this camera's picture: person-seconds per cell
+        # of a cols x rows grid (feet position), sparse [cell, seconds] pairs.
+        "heatmap": {
+            "cols": cfg.heatmap_cols,
+            "rows": cfg.heatmap_rows,
+            "cells": [[c, round(v, 2)] for c, v in sorted(heat.items())],
+        },
         "reid": {
             "encoder": enc.name if enc is not None else None,
             "descriptors": crops_embedded,
             "seconds": round(reid_seconds, 2),
             "same_camera_links": link.same_camera_links,
+            "thresholds": link.thresholds,
             "skipped_ambiguous": link.skipped_ambiguous,
         },
         "events": counts,

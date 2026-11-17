@@ -201,3 +201,52 @@ async def test_shutdown_requeues_without_consuming_attempt(admin, clip):
     await worker.process(claimed.id)
     j = (await admin.get(f"/api/jobs/{job['id']}")).json()
     assert j["status"] == "queued" and j["attempts"] == 0
+
+
+async def test_shopper_is_one_visit_across_two_cameras(admin, tmp_path):
+    """Door camera sees a shopper leave to the right; 3 s later the aisle
+    camera sees the same shopper. Both videos' events get one store visit id
+    and one journey runs across both cameras."""
+    store = await make_store(admin)
+    whole = [[0, 0], [1, 0], [1, 1], [0, 1]]
+    cams = []
+    for code, zone in (("DOOR", "Door area"), ("AISLE", "Aisle")):
+        cam = await make_camera(admin, store["id"], code, "zone")
+        z = [{"zone_code": code[0], "name": zone, "zone_type": "SHELF", "polygon": whole}]
+        assert (await admin.put(f"/api/cameras/{cam['id']}/config", json={"zones": z})).status_code == 200
+        cams.append(cam)
+    door, aisle = tmp_path / "door.mp4", tmp_path / "aisle.mp4"
+    write_video(str(door), 10, 10, lambda t: (int(120 + 60 * t), 300) if t < 6 else None)
+    write_video(str(aisle), 12, 10, lambda t: (int(160 + 40 * (t - 2)), 280) if 2 <= t < 9 else None)
+    await upload(admin, store["id"], cams[0]["id"], str(door), recorded_start="2026-03-08T18:00:00+05:30")
+    await run_worker_once()
+    # Aisle video starts 7 s after the door video: shopper appears at 18:00:09.
+    _, job = await upload(admin, store["id"], cams[1]["id"], str(aisle), recorded_start="2026-03-08T18:00:07+05:30")
+    await run_worker_once()
+
+    job = (await admin.get(f"/api/jobs/{job['id']}")).json()
+    assert job["status"] == "completed", job
+    assert job["results"]["visits"]["linked"] and job["results"]["visits"]["cross_camera_links"] == 1
+    assert job["artifacts"]["reid"].startswith("reid/")
+    async with async_session() as db:
+        ids = set((await db.execute(select(Event.customer_id))).scalars().all())
+        cams_seen = set((await db.execute(select(Event.camera_id))).scalars().all())
+    assert len(ids) == 1 and next(iter(ids)).startswith("V2603081230-")
+    assert cams_seen == {"DOOR", "AISLE"}
+    j = (await admin.get(f"/api/analytics/{store['id']}/journeys",
+                         params={"start": "2026-03-08", "end": "2026-03-08"})).json()
+    assert j["total"] == 1
+    assert j["items"][0]["store_wide"] and j["items"][0]["zones_visited"] == ["Door area", "Aisle"]
+
+    hm = (await admin.get(f"/api/analytics/{store['id']}/heatmap",
+                          params={"start": "2026-03-08", "end": "2026-03-08"})).json()
+    assert {c["camera_code"] for c in hm["cameras"]} == {"DOOR", "AISLE"}
+    assert all(c["shoppers"] == 1 and c["cells"] and c["person_seconds"] > 4 for c in hm["cameras"])
+
+    # Descriptors are deleted once they are older than REID_DESCRIPTOR_HOURS.
+    async with async_session() as db:
+        await db.execute(update(ProcessingJob).values(finished_at=utcnow() - timedelta(hours=25)))
+        await db.commit()
+    await Worker(worker_id="test-worker", detector_factory=FakeDetector).apply_retention()
+    job = (await admin.get(f"/api/jobs/{job['id']}")).json()
+    assert "reid" not in job["artifacts"]
